@@ -552,6 +552,10 @@ class AdaptivePlot(BasePlot):
                     upper = upper_base + adaptive_cooling_effect(self._v, upper_base)
 
                 fill = ax.fill_between(x, lower, upper, color=band.color, **fill_opts)
+                if "label" not in fill_opts:
+                    fill.set_label(band.label)
+                elif fills:
+                    fill.set_label("_nolegend_")
                 fills.append(fill)
 
             center_line_artist: Line2D | None = None
@@ -559,6 +563,7 @@ class AdaptivePlot(BasePlot):
                 cl_opts = dict(_PlotDefaults.Adaptive.center_line_defaults)
                 if center_line_kws:
                     cl_opts.update(center_line_kws)
+                cl_opts.setdefault("label", _PlotDefaults.Adaptive.center_line_label)
                 t_lo, t_hi = self._t_rm_range
                 x = [t_lo, t_hi]
                 y = [slope * t_lo + intercept, slope * t_hi + intercept]
@@ -578,12 +583,14 @@ class AdaptivePlot(BasePlot):
                 lg_opts.setdefault("ncol", _PlotDefaults.Adaptive.legend_ncol)
 
                 handles: list[Any] = []
-                for band in reversed(bands):
+                for band, fill in zip(reversed(bands), reversed(fills), strict=True):
+                    if fill.get_label().startswith("_"):
+                        continue
                     handles.append(
                         Patch(
                             facecolor=band.color,
                             alpha=fill_opts.get("alpha", _PlotDefaults.fill_alpha),
-                            label=band.label,
+                            label=fill.get_label(),
                         )
                     )
                 if center_line_artist is not None:
@@ -591,7 +598,7 @@ class AdaptivePlot(BasePlot):
                         Line2D(
                             [0],
                             [0],
-                            label=_PlotDefaults.Adaptive.center_line_label,
+                            label=center_line_artist.get_label(),
                             **dict(_PlotDefaults.Adaptive.center_line_defaults),
                         )
                     )

@@ -463,6 +463,54 @@ def test_regions_config_reuse_across_plots() -> None:
 # ── fluent chaining ────────────────────────────────────────────────────────
 
 
+@pytest.mark.parametrize("model", [adaptive_ashrae, adaptive_en])
+@pytest.mark.parametrize("show_center_line", [True, False])
+def test_rebuilt_legend_preserves_comfort_entries(model, show_center_line) -> None:
+    result = AdaptivePlot(model).plot(show_center_line=show_center_line)
+    expected = [text.get_text() for text in result.legend.get_texts()]
+    result.ax.scatter([20], [25], label="Measured")
+    legend = result.ax.legend()
+    labels = [text.get_text() for text in legend.get_texts()]
+    assert len(labels) == len(expected) + 1
+    assert set(labels) == {*expected, "Measured"}
+
+
+def test_rebuilt_legend_preserves_custom_labels() -> None:
+    result = (
+        AdaptivePlot(adaptive_ashrae)
+        .set_regions(show=["90"], labels=["Custom zone"])
+        .plot(center_line_kws={"label": "Custom center"})
+    )
+    assert [text.get_text() for text in result.legend.get_texts()] == [
+        "Custom zone",
+        "Custom center",
+    ]
+    assert result.ax.get_legend_handles_labels()[1] == ["Custom zone", "Custom center"]
+
+
+def test_fill_label_override_is_preserved() -> None:
+    result = (
+        AdaptivePlot(adaptive_ashrae)
+        .set_regions(show=["90"])
+        .plot(fill_kws={"label": "Custom fill"}, show_center_line=False)
+    )
+    assert [text.get_text() for text in result.legend.get_texts()] == ["Custom fill"]
+    assert result.ax.get_legend_handles_labels()[1] == ["Custom fill"]
+
+
+def test_shared_fill_label_is_not_duplicated() -> None:
+    result = AdaptivePlot(adaptive_ashrae).plot(
+        fill_kws={"label": "Custom fill"},
+        show_center_line=False,
+    )
+    assert len(result.fills) == 2
+    assert [text.get_text() for text in result.legend.get_texts()] == ["Custom fill"]
+    assert result.ax.get_legend_handles_labels()[1] == ["Custom fill"]
+
+    legend = result.ax.legend()
+    assert [text.get_text() for text in legend.get_texts()] == ["Custom fill"]
+
+
 def test_full_chain_ashrae() -> None:
     result = (
         AdaptivePlot(adaptive_ashrae)
