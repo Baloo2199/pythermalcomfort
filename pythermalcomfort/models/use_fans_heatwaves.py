@@ -4,10 +4,10 @@ from dataclasses import asdict
 
 import numpy as np
 
+from pythermalcomfort._internal.validation import valid_range
 from pythermalcomfort.classes_input import NumericInput, UseFansHeatwavesInputs
 from pythermalcomfort.classes_return import UseFansHeatwaves
 from pythermalcomfort.models.two_nodes_gagge import two_nodes_gagge
-from pythermalcomfort.shared_functions import valid_range
 from pythermalcomfort.utilities import Postures
 
 

@@ -138,18 +138,23 @@ you don't need to touch git yourself after running it, just push.
    - `AutoStrMixin` provides aligned, multi-line `__str__()` with array summarization
    - Supports dict-like access via `__getitem__()` (e.g., `result['pmv']`)
 
-5. **`utilities.py`** - Core utilities and enums
+5. **`utilities.py`** - Stable general utilities and enums
    - Enums: `Models`, `Units`, `Sex`, `Postures`
-   - Psychrometric functions: `p_sat()`, `psy_ta_rh()`, `dew_point_tmp()`, `wet_bulb_tmp()`
-   - Unit conversion: `units_converter()`
-   - Physical constants and helper functions
+   - Unit conversion, body-surface-area calculation, constants, and data tables
+   - Temporary deprecation wrappers for public functions moved to focused packages
 
-6. **`shared_functions.py`** - Shared helper functions
+6. **Focused calculation packages**
+   - `environment/`: ambient and physical-environment calculations
+   - `psychrometrics/`: moist-air property calculations
+   - `clothing/`: clothing insulation calculations
+
+7. **`_internal/`** - Private implementation helpers
    - `valid_range()`: Filters array values to valid ranges (sets out-of-range to NaN)
    - `mapping()`: Maps numeric arrays to categorical stress categories (using dict of bin edges)
    - `_finalize_scalar_or_array()`: Converts 0-d arrays to Python scalars while preserving NaN
+   - ASHRAE 55 validation and adaptive cooling-effect helpers
 
-7. **`jos3_functions/`** - JOS-3 physiological model submodules
+8. **`jos3_functions/`** - JOS-3 physiological model submodules
    - `construction.py`: Body model initialization and validation
    - `thermoregulation.py`: Physiological response calculations
    - `matrix.py`: Node and segment indexing constants
@@ -189,15 +194,12 @@ def model_name(
 
 ```
 models/*.py (thermal calculations)
-  ↓ imports
-classes_input.py (validates inputs)
-  ↓ imports
-utilities.py (enums, constants, unit conversion)
-  ↓ imports
-shared_functions.py (array filtering, mapping, finalization)
-classes_return.py (output dataclasses)
-  ↓ imports
-plots/matplotlib/*.py (visualization of model outputs)
+  ├─ imports environment/, psychrometrics/, clothing/
+  ├─ imports _internal/ (private validation helpers)
+  ├─ imports classes_input.py and classes_return.py
+  └─ imports utilities.py (enums, constants, unit conversion)
+
+plots/matplotlib/*.py imports the focused public packages and model outputs
 ```
 
 ### Testing Architecture

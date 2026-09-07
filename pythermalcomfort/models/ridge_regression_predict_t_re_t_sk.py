@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import numpy as np
 
+from pythermalcomfort._internal.validation import valid_range
 from pythermalcomfort.classes_input import NumericInput, RidgeRegressionInputs
 from pythermalcomfort.classes_return import PredictedBodyTemperatures
-from pythermalcomfort.shared_functions import valid_range
 from pythermalcomfort.utilities import Sex
 
 # --- Model Constants ---

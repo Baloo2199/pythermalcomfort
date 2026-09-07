@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from pythermalcomfort._internal.validation import mapping, valid_range
 from pythermalcomfort.classes_input import NumericInput, PMVPPDInputs
 from pythermalcomfort.classes_return import PMVPPD
 from pythermalcomfort.models._pmv_ppd_optimized import _pmv_ppd_optimized
-from pythermalcomfort.shared_functions import mapping, valid_range
 from pythermalcomfort.utilities import (
     Models,
     Units,
@@ -46,7 +46,7 @@ def pmv_ppd_iso(
             average air speed measured by the sensor plus the activity-generated air speed
             (Vag). Where Vag is the activity-generated air speed caused by motion of
             individual body parts. vr can be calculated using the function
-            :py:meth:`pythermalcomfort.utilities.v_relative`.
+            :py:meth:`pythermalcomfort.environment.v_relative`.
 
     rh : float or list of floats
         Relative humidity, [%].
@@ -61,7 +61,7 @@ def pmv_ppd_iso(
             surface to the outer clothing surface, including enclosed air layers, under actual
             environmental conditions. This value is not the total insulation (`I`:sub:`T,r`).
             The dynamic clothing insulation, clo, can be calculated using the function
-            :py:meth:`pythermalcomfort.utilities.clo_dynamic_iso`.
+            :py:meth:`pythermalcomfort.clothing.clo_dynamic_iso`.
 
     wme : float or list of floats, optional
         External work, [met]. Defaults to 0.
@@ -101,7 +101,7 @@ def pmv_ppd_iso(
     .. code-block:: python
 
         from pythermalcomfort.models import pmv_ppd_iso
-        from pythermalcomfort.utilities import v_relative
+        from pythermalcomfort.environment import v_relative
 
         tdb = 25
         tr = 25

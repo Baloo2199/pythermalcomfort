@@ -3,9 +3,9 @@ from __future__ import annotations
 import numpy as np
 from numba import float64, vectorize
 
+from pythermalcomfort._internal.validation import mapping, valid_range
 from pythermalcomfort.classes_input import NumericInput, UTCIInputs
 from pythermalcomfort.classes_return import UTCI
-from pythermalcomfort.shared_functions import mapping, valid_range
 from pythermalcomfort.utilities import Units, units_converter
 
 

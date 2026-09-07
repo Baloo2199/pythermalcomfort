@@ -215,3 +215,14 @@ def mapping(
     categories = np.append(categories, np.nan)
     idx = np.digitize(value_arr, bins, right=right)
     return categories[idx]
+
+
+def validate_type(value, name: str, allowed_types: tuple):
+    """Validate the type of a value against allowed types."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    if not isinstance(value, allowed_types):
+        invalid_type_msg = (
+            f"{name} must be one of the following types: {allowed_types}."
+        )
+        raise TypeError(invalid_type_msg)

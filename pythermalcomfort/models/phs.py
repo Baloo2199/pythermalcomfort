@@ -5,15 +5,11 @@ import math
 import numpy as np
 from numba import jit, prange
 
+from pythermalcomfort._internal.validation import valid_range
 from pythermalcomfort.classes_input import NumericInput, PHSInputs
 from pythermalcomfort.classes_return import PHS
-from pythermalcomfort.shared_functions import valid_range
-from pythermalcomfort.utilities import (
-    Models,
-    Postures,
-    met_to_w_m2,
-    p_sat,
-)
+from pythermalcomfort.psychrometrics import p_sat
+from pythermalcomfort.utilities import Models, Postures, met_to_w_m2
 
 
 def phs(

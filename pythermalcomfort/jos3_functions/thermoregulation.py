@@ -9,7 +9,8 @@ from pythermalcomfort.classes_return import JOS3BodyParts
 from pythermalcomfort.jos3_functions import construction as cons
 from pythermalcomfort.jos3_functions.matrix import IDICT
 from pythermalcomfort.jos3_functions.parameters import Default
-from pythermalcomfort.utilities import Postures, Sex, antoine
+from pythermalcomfort.psychrometrics import antoine
+from pythermalcomfort.utilities import Postures, Sex
 
 
 def natural_convection(posture: str, tdb: float, t_skin: float) -> np.ndarray:

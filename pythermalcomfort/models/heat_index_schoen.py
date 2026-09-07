@@ -3,10 +3,10 @@ from __future__ import annotations
 import numpy as np
 from numba import float64, vectorize
 
+from pythermalcomfort._internal.validation import HEAT_INDEX_STRESS_CATEGORIES, mapping
 from pythermalcomfort.classes_input import HIInputs, NumericInput
 from pythermalcomfort.classes_return import HI
-from pythermalcomfort.shared_functions import HEAT_INDEX_STRESS_CATEGORIES, mapping
-from pythermalcomfort.utilities import psy_ta_rh
+from pythermalcomfort.psychrometrics import psy_ta_rh
 
 
 def heat_index_schoen(

@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-from pythermalcomfort.utilities import NumericInput, Postures, Sex, Units, validate_type
+from pythermalcomfort._internal.validation import validate_type
+from pythermalcomfort.utilities import NumericInput, Postures, Sex, Units
 
 _NUMERIC_TYPES = NumericInput.__args__
 

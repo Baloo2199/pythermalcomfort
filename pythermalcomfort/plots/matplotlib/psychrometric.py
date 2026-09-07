@@ -22,7 +22,7 @@ from pythermalcomfort.plots.matplotlib.threshold import (
     ThresholdPlot,
     ThresholdPlotResult,
 )
-from pythermalcomfort.utilities import hr_to_rh, psy_ta_rh
+from pythermalcomfort.psychrometrics import hr_to_rh, psy_ta_rh
 
 
 class PsychrometricPlot(ThresholdPlot):

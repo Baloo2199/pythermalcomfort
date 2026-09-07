@@ -4,6 +4,11 @@ Changelog
 Unreleased
 ----------
 
+* Split the former utility helper collection into focused public
+  ``environment``, ``psychrometrics``, and ``clothing`` packages, and moved
+  implementation-only helpers into ``_internal``. Existing public imports from
+  ``pythermalcomfort.utilities`` and ``pythermalcomfort.utils`` remain available
+  temporarily with ``DeprecationWarning``.
 * Pinned ``tests/conftest.py``'s ``validation-data-comfort-models`` fixture URL to the
   ``v1.0.0`` tag instead of ``main``, so upstream fixture changes can't silently affect
   CI before the pin is deliberately bumped and reviewed. See ``CONTRIBUTING.rst``'s

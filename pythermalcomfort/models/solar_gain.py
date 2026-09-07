@@ -5,10 +5,11 @@ import math
 import numpy as np
 from numba import njit, prange
 
+from pythermalcomfort._internal.validation import valid_range
 from pythermalcomfort.classes_input import NumericInput, SolarGainInputs
 from pythermalcomfort.classes_return import SolarGain
-from pythermalcomfort.shared_functions import valid_range
-from pythermalcomfort.utilities import Postures, transpose_sharp_altitude
+from pythermalcomfort.environment import transpose_sharp_altitude
+from pythermalcomfort.utilities import Postures
 
 # integer codes for posture, since numba nopython mode can't dispatch on
 # Python string/enum comparisons the way the rest of this module's helpers do
@@ -112,7 +113,7 @@ def solar_gain(
     f_svv : float or list of floats
         Fraction of sky-vault view fraction exposed to body, ranges from 0 to 1.
         It can be calculated using the function
-        :py:meth:`pythermalcomfort.utilities.f_svv`.
+        :py:meth:`pythermalcomfort.environment.f_svv`.
     f_bes : float or list of floats
         Fraction of the possible body surface exposed to sun, ranges from 0 to 1.
         See Table C2-2 and equation C-7 ASHRAE 55 2020 [55ASHRAE2023]_.

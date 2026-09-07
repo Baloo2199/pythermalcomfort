@@ -3,13 +3,13 @@ from __future__ import annotations
 import numpy as np
 from numba import float64, vectorize
 
-from pythermalcomfort.classes_input import HIInputs, NumericInput
-from pythermalcomfort.classes_return import HI
-from pythermalcomfort.shared_functions import (
+from pythermalcomfort._internal.validation import (
     HEAT_INDEX_STRESS_CATEGORIES,
     mapping,
     valid_range,
 )
+from pythermalcomfort.classes_input import HIInputs, NumericInput
+from pythermalcomfort.classes_return import HI
 
 
 def heat_index_rothfusz(
