@@ -1,8 +1,120 @@
+import numpy as np
 import pytest
 
 from pythermalcomfort.models import two_nodes_gagge_ji
 from pythermalcomfort.psychrometrics import p_sat_torr
 from pythermalcomfort.utilities import body_surface_area
+
+
+def test_two_nodes_gagge_ji_complete_time_series_regression() -> None:
+    """Pin scalar and array time-series outputs from the pre-Numba implementation."""
+    weight = 80.1
+    bsa = body_surface_area(weight=weight, height=1.8)
+    common = {
+        "wme": 0,
+        "body_surface_area": bsa,
+        "p_atm": 101325,
+        "position": "sitting",
+        "acclimatized": True,
+        "body_weight": weight,
+    }
+
+    scalar_result = two_nodes_gagge_ji(
+        tdb=36.5,
+        tr=36.5,
+        v=0.25,
+        met=0.95,
+        clo=0.1,
+        vapor_pressure=20 * p_sat_torr(tdb=36.5) / 100,
+        length_time_simulation=6,
+        **common,
+    )
+    assert isinstance(scalar_result.t_core, np.ndarray)
+    assert isinstance(scalar_result.t_skin, np.ndarray)
+    assert scalar_result.t_core.shape == (6,)
+    assert scalar_result.t_skin.shape == (6,)
+    np.testing.assert_allclose(
+        scalar_result.t_core,
+        [
+            36.516105213824275,
+            36.547685700888465,
+            36.576012449954796,
+            36.60164288217578,
+            36.62502377928286,
+            36.64651422522319,
+        ],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        scalar_result.t_skin,
+        [
+            36.774035566875106,
+            36.40807561844041,
+            36.11486504764158,
+            35.87955212231442,
+            35.69038774391016,
+            35.53809246343035,
+        ],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+    array_result = two_nodes_gagge_ji(
+        tdb=[36.5, 31.0],
+        tr=[36.5, 31.5],
+        v=[0.25, 0.2],
+        met=[0.95, 0.7],
+        clo=[0.1, 0.67],
+        vapor_pressure=[
+            20 * p_sat_torr(tdb=36.5) / 100,
+            60 * p_sat_torr(tdb=31.0) / 100,
+        ],
+        length_time_simulation=4,
+        **common,
+    )
+    assert isinstance(array_result.t_core, list)
+    assert isinstance(array_result.t_skin, list)
+    assert [values.shape for values in array_result.t_core] == [(4,), (4,)]
+    assert [values.shape for values in array_result.t_skin] == [(4,), (4,)]
+    np.testing.assert_allclose(
+        array_result.t_core,
+        [
+            [
+                36.516105213824275,
+                36.547685700888465,
+                36.576012449954796,
+                36.60164288217578,
+            ],
+            [
+                36.51006711047728,
+                36.534910362727736,
+                36.5569230515869,
+                36.57647015573995,
+            ],
+        ],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        array_result.t_skin,
+        [
+            [
+                36.774035566875106,
+                36.40807561844041,
+                36.11486504764158,
+                35.87955212231442,
+            ],
+            [
+                36.67827501809432,
+                36.34939739292867,
+                36.064690097764036,
+                35.81939854020882,
+            ],
+        ],
+        rtol=1e-12,
+        atol=1e-12,
+    )
 
 
 # Scenarios based on Table 4 from the paper by Ji et al. (2022)
