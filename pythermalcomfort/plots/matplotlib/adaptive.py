@@ -210,8 +210,10 @@ class AdaptivePlot(BasePlot):
     When overlaying external scatter data, set ``v`` to match the air speed
     used to calculate the plotted operative temperatures.  If the overlaid
     points have heterogeneous air speeds, the displayed comfort bands are an
-    approximation; use the per-row ``acceptability_80`` / ``acceptability_90``
-    output from the adaptive model as the source of truth.
+    approximation; use the per-row model acceptability outputs as the source
+    of truth: ``acceptability_80`` / ``acceptability_90`` for ASHRAE, or
+    ``acceptability_cat_i`` / ``acceptability_cat_ii`` /
+    ``acceptability_cat_iii`` for EN.
 
     Band keys for selection and customization:
 
