@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
+from typing import cast
 
 import numpy as np
 from numba import float64, njit, vectorize
+from numpy.typing import NDArray
 
 from pythermalcomfort.classes_input import HIInputs, NumericInput
 from pythermalcomfort.classes_return import HI
@@ -340,13 +343,25 @@ def _find_t(eq_var_code, eq_var):
     return _bisect(_R_T_DTCDT, eq_var, 0.0, 0.0, 0.0, 340.0, 1000.0, _TOL_T)
 
 
-@vectorize(
-    [
-        float64(float64, float64),
+@cast(
+    Callable[
+        [Callable[[float, float], float]],
+        Callable[
+            [
+                float | NDArray[np.float64],
+                float | NDArray[np.float64],
+            ],
+            np.float64 | NDArray[np.float64],
+        ],
     ],
-    cache=True,
+    vectorize(
+        [
+            float64(float64, float64),
+        ],
+        cache=True,
+    ),
 )
-def _lu_heat_index_optimized(tdb, rh):
+def _lu_heat_index_optimized(tdb: float, rh: float) -> float:
     # combining the two functions find_eq_var and find_t
     eq_var_code, phi, rf, rs, d_tc_dt = _find_eq_var(tdb, rh)
     if eq_var_code == _EQ_PHI:
