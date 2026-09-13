@@ -207,6 +207,12 @@ class AdaptivePlot(BasePlot):
     upward, but only where that boundary already exceeds 25 °C — matching
     the standard definition.
 
+    When overlaying external scatter data, set ``v`` to match the air speed
+    used to calculate the plotted operative temperatures.  If the overlaid
+    points have heterogeneous air speeds, the displayed comfort bands are an
+    approximation; use the per-row ``acceptability_80`` / ``acceptability_90``
+    output from the adaptive model as the source of truth.
+
     Band keys for selection and customization:
 
     - **ASHRAE**: ``"80"`` (80% acceptability), ``"90"`` (90% acceptability)
@@ -320,6 +326,14 @@ class AdaptivePlot(BasePlot):
 
     def set_params(self, *, v: float) -> AdaptivePlot:
         """Set the air speed used to compute the cooling effect.
+
+        Use the air speed that matches the data being plotted.  For measured
+        scatter data, this is typically the air speed at which the points were
+        collected, or a representative value such as the mode or median when
+        air speed varies across rows.  If overlaid points have substantially
+        different air speeds, compare their per-row adaptive model
+        acceptability outputs rather than relying only on their visual position
+        against this single-``v`` chart.
 
         Parameters
         ----------
