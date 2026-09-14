@@ -1,6 +1,14 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+* Fixed ``two_nodes_gagge_sleep`` silently truncating or coercing a non-integer
+  ``ltime`` keyword argument (e.g. ``1.5`` became one iteration, ``"1"`` was
+  accepted as a string) instead of raising. Non-``int`` values now raise
+  ``TypeError``.
+
 4.4.3 (2026-09-14)
 ------------------
 
