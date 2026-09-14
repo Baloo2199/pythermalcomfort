@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from pythermalcomfort._internal.validation import valid_range
+from pythermalcomfort._internal.validation import _valid_range
 from pythermalcomfort.utilities import NumericInput, c_to_k, cp_air, g
 
 
@@ -117,7 +117,7 @@ def mean_radiant_tmp(
             - 273.15
         )
 
-        d_valid = valid_range(d, (0.04, 0.15))
+        d_valid = _valid_range(d, (0.04, 0.15))
         return np.where(~np.isnan(d_valid), tr, np.nan)
 
     if standard == "iso":  # pragma: no branch

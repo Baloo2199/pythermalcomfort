@@ -3,7 +3,7 @@ from typing import Literal
 import numpy as np
 
 from pythermalcomfort._internal.adaptive_cooling_effect import adaptive_cooling_effect
-from pythermalcomfort._internal.validation import valid_range
+from pythermalcomfort._internal.validation import _valid_range
 from pythermalcomfort.classes_input import ENInputs, NumericInput
 from pythermalcomfort.classes_return import AdaptiveEN
 from pythermalcomfort.environment import operative_tmp
@@ -119,7 +119,7 @@ def adaptive_en(
     t_cmf = SLOPE * t_running_mean + INTERCEPT
 
     if limit_inputs:
-        trm_valid = valid_range(t_running_mean, (10.0, 33.5))
+        trm_valid = _valid_range(t_running_mean, (10.0, 33.5))
         all_valid = ~(np.isnan(trm_valid))
         t_cmf = np.where(all_valid, t_cmf, np.nan)
 

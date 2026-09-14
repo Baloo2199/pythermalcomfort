@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from pythermalcomfort._internal.ashrae55 import _check_ashrae55_compliance
-from pythermalcomfort._internal.validation import _finalize_scalar_or_array, mapping
+from pythermalcomfort._internal.validation import _finalize_scalar_or_array, _mapping
 from pythermalcomfort.classes_input import NumericInput, PMVPPDInputs
 from pythermalcomfort.classes_return import PMVPPDAshrae
 from pythermalcomfort.models._pmv_ppd_optimized import _pmv_ppd_optimized
@@ -237,6 +237,6 @@ def pmv_ppd_ashrae(
     return PMVPPDAshrae(
         pmv=pmv_array,
         ppd=ppd_array,
-        tsv=mapping(pmv_array, thermal_sensation),
+        tsv=_mapping(pmv_array, thermal_sensation),
         compliance=compliance_array,
     )

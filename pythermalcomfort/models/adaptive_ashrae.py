@@ -4,7 +4,7 @@ import numpy as np
 
 from pythermalcomfort._internal.adaptive_cooling_effect import adaptive_cooling_effect
 from pythermalcomfort._internal.ashrae55 import _check_ashrae55_compliance
-from pythermalcomfort._internal.validation import valid_range
+from pythermalcomfort._internal.validation import _valid_range
 from pythermalcomfort.classes_input import ASHRAEInputs, NumericInput
 from pythermalcomfort.classes_return import AdaptiveASHRAE
 from pythermalcomfort.environment import operative_tmp
@@ -135,7 +135,7 @@ def adaptive_ashrae(
             tr=tr,
             v=v,
         )
-        trm_valid = valid_range(t_running_mean, (10.0, 33.5))
+        trm_valid = _valid_range(t_running_mean, (10.0, 33.5))
         all_valid = ~(
             np.isnan(tdb_valid)
             | np.isnan(tr_valid)

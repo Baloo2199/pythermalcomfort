@@ -5,7 +5,7 @@ import math
 import numpy as np
 from numba import njit, prange
 
-from pythermalcomfort._internal.validation import valid_range
+from pythermalcomfort._internal.validation import _valid_range
 from pythermalcomfort.classes_input import NumericInput, SolarGainInputs
 from pythermalcomfort.classes_return import SolarGain
 from pythermalcomfort.environment import transpose_sharp_altitude
@@ -195,8 +195,8 @@ def solar_gain(
     # the fp lookup table only covers 0-90/0-180; outside that, _find_span
     # can't return a valid span at all, so clip to NaN (with a warning) here
     # rather than let the numba kernel silently wrap a -1 index
-    sol_altitude = valid_range(sol_altitude, (0.0, 90.0))
-    sharp = valid_range(sharp, (0.0, 180.0))
+    sol_altitude = _valid_range(sol_altitude, (0.0, 90.0))
+    sharp = _valid_range(sharp, (0.0, 180.0))
     sol_radiation_dir = np.asarray(sol_radiation_dir)
     sol_transmittance = np.asarray(sol_transmittance)
     f_svv = np.asarray(f_svv)
@@ -303,7 +303,7 @@ def _solar_gain_scalar(
     az_i = _find_span(_AZ_RANGE, sharp)
     if alt_i == -1 or az_i == -1:
         # sol_altitude/sharp out of the table's domain (0-90/0-180), or NaN
-        # (e.g. from valid_range clipping upstream): -1 would otherwise wrap
+        # (e.g. from _valid_range clipping upstream): -1 would otherwise wrap
         # around to the last row/column instead of failing, so bail out
         # explicitly rather than returning a plausible-looking wrong value.
         return np.nan, np.nan

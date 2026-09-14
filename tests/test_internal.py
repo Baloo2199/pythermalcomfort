@@ -1,19 +1,20 @@
 import numpy as np
 import pytest
 
+import pythermalcomfort._internal.validation as validation
 from pythermalcomfort._internal.ashrae55 import _check_ashrae55_compliance
-from pythermalcomfort._internal.validation import valid_range, validate_type
+from pythermalcomfort._internal.validation import _mapping, _valid_range, validate_type
 
 
 class TestValidRange:
-    """Tests for valid_range warning behaviour."""
+    """Tests for _valid_range warning behaviour."""
 
     def test_scalar_out_of_range_warns(self) -> None:
         """Scalar value outside range triggers UserWarning with the value."""
         with pytest.warns(
             UserWarning, match=r"'tdb' has value 50\.0.*\[10\.0, 40\.0\]"
         ):
-            result = valid_range(50.0, (10.0, 40.0), "tdb")
+            result = _valid_range(50.0, (10.0, 40.0), "tdb")
         assert np.isnan(result)
 
     def test_array_out_of_range_warns(self) -> None:
@@ -22,13 +23,13 @@ class TestValidRange:
             UserWarning,
             match=r"'tdb' has 2 values \[50\.0, 45\.0\] at indices \[1, 3\].*\[10\.0, 40\.0\]",
         ):
-            result = valid_range([20.0, 50.0, 30.0, 45.0], (10.0, 40.0), "tdb")
+            result = _valid_range([20.0, 50.0, 30.0, 45.0], (10.0, 40.0), "tdb")
         assert np.isnan(result[1]) and np.isnan(result[3])
         assert result[0] == 20.0 and result[2] == 30.0
 
     def test_in_range_no_warning(self, recwarn) -> None:
         """Values within range produce no warning."""
-        result = valid_range(25.0, (10.0, 40.0), "tdb")
+        result = _valid_range(25.0, (10.0, 40.0), "tdb")
         assert len(recwarn) == 0
         assert result == 25.0
 
@@ -38,7 +39,7 @@ class TestValidRange:
         with pytest.warns(
             UserWarning, match=r"'tdb' has value 50\.0.*\[10\.0, 40\.0\]"
         ):
-            result = valid_range(tdb, (10.0, 40.0))
+            result = _valid_range(tdb, (10.0, 40.0))
         assert np.isnan(result)
 
     def test_no_param_name_literal_falls_back_to_unknown(self) -> None:
@@ -46,8 +47,19 @@ class TestValidRange:
         with pytest.warns(
             UserWarning, match=r"'<unknown>' has value 50\.0.*\[10\.0, 40\.0\]"
         ):
-            result = valid_range(50.0, (10.0, 40.0))
+            result = _valid_range(50.0, (10.0, 40.0))
         assert np.isnan(result)
+
+
+def test_internal_renames_have_no_compatibility_aliases() -> None:
+    """Internal helpers expose only their new private names."""
+    assert not hasattr(validation, "valid_range")
+    assert not hasattr(validation, "mapping")
+    assert _mapping([10, 20, 30], {15: "low", 25: "medium", 35: "high"}).tolist() == [
+        "low",
+        "medium",
+        "high",
+    ]
 
 
 class TestCheckAshrae55Compliance:

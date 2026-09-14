@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pythermalcomfort._internal.validation import mapping, valid_range
+from pythermalcomfort._internal.validation import _mapping, _valid_range
 from pythermalcomfort.classes_input import NumericInput, PMVPPDInputs
 from pythermalcomfort.classes_return import PMVPPD
 from pythermalcomfort.models._pmv_ppd_optimized import _pmv_ppd_optimized
@@ -178,13 +178,13 @@ def pmv_ppd_iso(
         # ISO 7730 Clause 4 applicability limits
         pa = rh * 10.0 * np.exp(16.6536 - 4030.183 / (tdb + 235.0))
 
-        tdb_valid = valid_range(tdb, (10.0, 30.0))
-        tr_valid = valid_range(tr, (10.0, 40.0))
-        v_valid = valid_range(vr, (0.0, 1.0))
-        met_valid = valid_range(met, (0.8, 4.0))
-        clo_valid = valid_range(clo, (0.0, 2.0))
-        pa_valid = valid_range(pa, (0.0, 2700.0))
-        pmv_valid = valid_range(pmv, (-2, 2))
+        tdb_valid = _valid_range(tdb, (10.0, 30.0))
+        tr_valid = _valid_range(tr, (10.0, 40.0))
+        v_valid = _valid_range(vr, (0.0, 1.0))
+        met_valid = _valid_range(met, (0.8, 4.0))
+        clo_valid = _valid_range(clo, (0.0, 2.0))
+        pa_valid = _valid_range(pa, (0.0, 2700.0))
+        pmv_valid = _valid_range(pmv, (-2, 2))
 
         all_valid = ~(
             np.isnan(tdb_valid)
@@ -215,5 +215,5 @@ def pmv_ppd_iso(
     return PMVPPD(
         pmv=pmv,
         ppd=ppd_array,
-        tsv=mapping(pmv, thermal_sensation, right=False),
+        tsv=_mapping(pmv, thermal_sensation, right=False),
     )

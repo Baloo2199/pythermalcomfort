@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from numba import float64, vectorize
 
-from pythermalcomfort._internal.validation import HEAT_INDEX_STRESS_CATEGORIES, mapping
+from pythermalcomfort._internal.validation import HEAT_INDEX_STRESS_CATEGORIES, _mapping
 from pythermalcomfort.classes_input import HIInputs, NumericInput
 from pythermalcomfort.classes_return import HI
 from pythermalcomfort.psychrometrics import psy_ta_rh
@@ -67,7 +67,7 @@ def heat_index_schoen(
     if round_output:
         hi = np.around(hi, 1)
 
-    return HI(hi=hi, stress_category=mapping(hi, heat_index_categories))
+    return HI(hi=hi, stress_category=_mapping(hi, heat_index_categories))
 
 
 @vectorize(

@@ -4,11 +4,72 @@ Changelog
 Unreleased
 ----------
 
-* Split the former utility helper collection into focused public
-  ``environment``, ``psychrometrics``, and ``clothing`` packages, and moved
-  implementation-only helpers into ``_internal``. Existing public imports from
-  ``pythermalcomfort.utilities`` and ``pythermalcomfort.utils`` remain available
-  temporarily with ``DeprecationWarning``.
+* Sped up ``two_nodes_gagge_sleep`` by compiling its stateful simulation loop
+  with Numba while preserving its public output values and shapes. Empty
+  ``tdb``/``tr``/``v``/``rh``/``clo``/``thickness_quilt`` inputs now raise a
+  clear ``ValueError`` instead of failing with an unrelated ``TypeError``.
+* Deprecated the following legacy public import paths. They continue to work for two
+  minor releases and emit ``DeprecationWarning`` pointing to their new locations;
+  this is not an immediate breaking change.
+
+  * Environment calculations:
+
+    * ``pythermalcomfort.utilities.mean_radiant_tmp`` →
+      ``pythermalcomfort.environment.mean_radiant_tmp``
+    * ``pythermalcomfort.utilities.operative_tmp`` →
+      ``pythermalcomfort.environment.operative_tmp``
+    * ``pythermalcomfort.utilities.running_mean_outdoor_temperature`` →
+      ``pythermalcomfort.environment.running_mean_outdoor_temperature``
+    * ``pythermalcomfort.utilities.transpose_sharp_altitude`` →
+      ``pythermalcomfort.environment.transpose_sharp_altitude``
+    * ``pythermalcomfort.utilities.f_svv`` →
+      ``pythermalcomfort.environment.f_svv``
+    * ``pythermalcomfort.utilities.v_relative`` →
+      ``pythermalcomfort.environment.v_relative``
+    * ``pythermalcomfort.utils.scale_wind_speed_log`` →
+      ``pythermalcomfort.environment.scale_wind_speed_log``
+
+  * Psychrometric calculations:
+
+    * ``pythermalcomfort.utilities.p_sat`` →
+      ``pythermalcomfort.psychrometrics.p_sat``
+    * ``pythermalcomfort.utilities.p_sat_torr`` →
+      ``pythermalcomfort.psychrometrics.p_sat_torr``
+    * ``pythermalcomfort.utilities.antoine`` →
+      ``pythermalcomfort.psychrometrics.antoine``
+    * ``pythermalcomfort.utilities.psy_ta_rh`` →
+      ``pythermalcomfort.psychrometrics.psy_ta_rh``
+    * ``pythermalcomfort.utilities.hr_to_rh`` →
+      ``pythermalcomfort.psychrometrics.hr_to_rh``
+    * ``pythermalcomfort.utilities.wet_bulb_tmp`` →
+      ``pythermalcomfort.psychrometrics.wet_bulb_tmp``
+    * ``pythermalcomfort.utilities.dew_point_tmp`` →
+      ``pythermalcomfort.psychrometrics.dew_point_tmp``
+    * ``pythermalcomfort.utilities.enthalpy_air`` →
+      ``pythermalcomfort.psychrometrics.enthalpy_air``
+
+  * Clothing calculations:
+
+    * ``pythermalcomfort.utilities.clo_dynamic_ashrae`` →
+      ``pythermalcomfort.clothing.clo_dynamic_ashrae``
+    * ``pythermalcomfort.utilities.clo_dynamic_iso`` →
+      ``pythermalcomfort.clothing.clo_dynamic_iso``
+    * ``pythermalcomfort.utilities.clo_intrinsic_insulation_ensemble`` →
+      ``pythermalcomfort.clothing.clo_intrinsic_insulation_ensemble``
+    * ``pythermalcomfort.utilities.clo_area_factor`` →
+      ``pythermalcomfort.clothing.clo_area_factor``
+    * ``pythermalcomfort.utilities.clo_insulation_air_layer`` →
+      ``pythermalcomfort.clothing.clo_insulation_air_layer``
+    * ``pythermalcomfort.utilities.clo_total_insulation`` →
+      ``pythermalcomfort.clothing.clo_total_insulation``
+    * ``pythermalcomfort.utilities.clo_correction_factor_environment`` →
+      ``pythermalcomfort.clothing.clo_correction_factor_environment``
+
+* Moved internal-only ``valid_range`` and ``mapping`` from
+  ``pythermalcomfort.shared_functions`` to
+  ``pythermalcomfort._internal.validation`` as ``_valid_range`` and ``_mapping``.
+  These private helpers were never public API, so no compatibility aliases are
+  provided.
 * Pinned ``tests/conftest.py``'s ``validation-data-comfort-models`` fixture URL to the
   ``v1.0.0`` tag instead of ``main``, so upstream fixture changes can't silently affect
   CI before the pin is deliberately bumped and reviewed. See ``CONTRIBUTING.rst``'s
@@ -16,6 +77,14 @@ Unreleased
 * Addressed Copilot review feedback on the 4.4.1 ``phs`` fix: pass ``param_name``
   explicitly to ``valid_range()`` for the ``(tr - tdb)`` check, and added regression
   tests for the applicability-limit and minute-1 skin-temperature behavior.
+* Fixed the saturation vapour pressure calculation in ``utci``
+  (`#372 <https://github.com/pythermalcomfort/pythermalcomfort/issues/372>`_): the
+  Hardy/Wexler equation's ``ln(T)`` term used ``np.log1p`` (which computes
+  ``ln(1 + T)``) instead of ``np.log``, inflating the saturation vapour pressure by
+  ~1%. The resulting UTCI error is negligible in mild conditions (~0.03 °C at 25 °C,
+  50% RH) but grows to ~0.7 °C at 40 °C, 80% RH, where UTCI matters most for heat
+  stress assessment. Updated the affected hard-coded test expectations and added a
+  regression test cross-checking ``utci``'s vapour pressure against ``p_sat``.
 
 4.4.1 (2026-08-18)
 ------------------

@@ -149,8 +149,8 @@ you don't need to touch git yourself after running it, just push.
    - `clothing/`: clothing insulation calculations
 
 7. **`_internal/`** - Private implementation helpers
-   - `valid_range()`: Filters array values to valid ranges (sets out-of-range to NaN)
-   - `mapping()`: Maps numeric arrays to categorical stress categories (using dict of bin edges)
+   - `_valid_range()`: Filters array values to valid ranges (sets out-of-range to NaN)
+   - `_mapping()`: Maps numeric arrays to categorical stress categories (using dict of bin edges)
    - `_finalize_scalar_or_array()`: Converts 0-d arrays to Python scalars while preserving NaN
    - ASHRAE 55 validation and adaptive cooling-effect helpers
 
@@ -257,7 +257,7 @@ def pmv_ppd_iso(
 ### When modifying models
 
 1. **Maintain input/output contracts**: Model functions must accept scalar and array inputs, return dataclass with same attributes
-2. **Use limit_inputs consistently**: If model has applicability limits, enforce via `valid_range()` and return NaN
+2. **Use limit_inputs consistently**: If model has applicability limits, enforce via `_valid_range()` and return NaN
 3. **Update classes_input.py**: Add validation rules for new parameters in dataclass metadata
 4. **Update classes_return.py**: Create/update output dataclass for return values
 5. **Test with arrays**: Ensure model works with both single values and 1-D arrays

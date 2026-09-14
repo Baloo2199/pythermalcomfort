@@ -4,7 +4,7 @@ import warnings
 
 import numpy as np
 
-from pythermalcomfort._internal.validation import _format_violation_detail, valid_range
+from pythermalcomfort._internal.validation import _format_violation_detail, _valid_range
 from pythermalcomfort.environment import operative_tmp
 
 
@@ -26,14 +26,14 @@ def _check_ashrae55_compliance(**kwargs):
     v_param_name = params["v_param_name"]
     values_to_return = {}
 
-    tdb_valid = valid_range(params["tdb"], (10.0, 40.0), param_name="tdb")
-    tr_valid = valid_range(params["tr"], (10.0, 40.0), param_name="tr")
+    tdb_valid = _valid_range(params["tdb"], (10.0, 40.0), param_name="tdb")
+    tr_valid = _valid_range(params["tr"], (10.0, 40.0), param_name="tr")
 
     values_to_return["tdb"] = tdb_valid
     values_to_return["tr"] = tr_valid
 
     if "v" in params:
-        v_valid = valid_range(params["v"], (0.0, 2.0), param_name=v_param_name)
+        v_valid = _valid_range(params["v"], (0.0, 2.0), param_name=v_param_name)
         values_to_return["v"] = v_valid
 
     if not params["airspeed_control"]:
@@ -91,14 +91,14 @@ def _check_ashrae55_compliance(**kwargs):
         values_to_return["v"] = v_valid
 
     if "met" in params:
-        met_valid = valid_range(params["met"], (1.0, 4.0), param_name="met")
-        clo_valid = valid_range(params["clo"], (0.0, 1.5), param_name="clo")
+        met_valid = _valid_range(params["met"], (1.0, 4.0), param_name="met")
+        clo_valid = _valid_range(params["clo"], (0.0, 1.5), param_name="clo")
 
         values_to_return["met"] = met_valid
         values_to_return["clo"] = clo_valid
 
     if "v_limited" in params:
-        valid = valid_range(params["v_limited"], (0.0, 0.2), param_name="v_limited")
+        valid = _valid_range(params["v_limited"], (0.0, 0.2), param_name="v_limited")
         values_to_return["v_limited"] = valid
 
     return values_to_return.values()
