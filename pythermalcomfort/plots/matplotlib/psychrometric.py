@@ -25,7 +25,7 @@ from pythermalcomfort.plots.matplotlib.threshold import (
 )
 from pythermalcomfort.utilities import hr_to_rh, psy_ta_rh
 
-#: Grams of water per kilogram of water, used to convert between the
+#: Grams of water per kilogram of dry air, used to convert between the
 #: chart's display units (g/kg dry air) and the kg/kg dry air that
 #: :func:`~pythermalcomfort.utilities.psy_ta_rh` and
 #: :func:`~pythermalcomfort.utilities.hr_to_rh` work in.
@@ -59,10 +59,14 @@ class PsychrometricPlot(ThresholdPlot):
         because typical indoor values (roughly 5-20 g/kg) are far easier to
         read than their 0.005-0.020 kg/kg equivalents.  Pass ``0.0, 30.0``
         where you previously passed ``0.0, 0.030``.  This affects only the
-        chart; :func:`~pythermalcomfort.utilities.psy_ta_rh`,
-        :func:`~pythermalcomfort.utilities.hr_to_rh`, and
-        :func:`~pythermalcomfort.utilities.enthalpy_air` still use kg/kg dry
-        air, so multiply by 1000 when feeding their output to this class.
+        chart; the psychrometric utilities are unchanged.
+        :func:`~pythermalcomfort.utilities.psy_ta_rh` still *returns* humidity
+        ratio in kg/kg dry air, and
+        :func:`~pythermalcomfort.utilities.hr_to_rh` and
+        :func:`~pythermalcomfort.utilities.enthalpy_air` still *accept* it in
+        those units.  So multiply by 1000 when plotting ``psy_ta_rh(...).hr``
+        here, and divide by 1000 when passing a value read off this chart back
+        to those functions.
         A y-axis whose upper bound is below 1 g/kg warns, so an un-migrated
         range does not silently render a blank chart.  It warns rather than
         raises because sub-1 g/kg is physically real in cold or very dry air.

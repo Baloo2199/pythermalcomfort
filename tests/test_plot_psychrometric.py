@@ -104,7 +104,12 @@ def test_y_axis_has_default_humidity_ratio_label() -> None:
     ylabel = result.ax.get_ylabel()
     assert ylabel != "hr"
     assert "Humidity ratio" in ylabel
+    # The units have to be stated, and stated as g/kg dry air: the whole point
+    # of #338 was that callers disagreed about them.
+    assert "g" in ylabel
+    assert "kg" in ylabel
     assert "dry" in ylabel
+    assert "kg/kg" not in ylabel.replace(" ", "")
 
     plt.close(result.fig)
 

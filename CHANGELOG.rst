@@ -16,10 +16,12 @@ Unreleased
   roughly 80 % RH), which this package supports
   (`#338 <https://github.com/pythermalcomfort/pythermalcomfort/issues/338>`_).
 
-  This does **not** change the psychrometric utilities. ``psy_ta_rh(...).hr``,
-  ``hr_to_rh()``, and ``enthalpy_air()`` still use kg/kg dry air, which is the
-  SI convention and matches ASHRAE Fundamentals. Multiply by 1000 when feeding
-  their output to this chart.
+  This does **not** change the psychrometric utilities. ``psy_ta_rh(...).hr``
+  still *returns* kg/kg dry air, and ``hr_to_rh()`` and ``enthalpy_air()``
+  still *accept* it, which is the SI convention and matches ASHRAE
+  Fundamentals. So multiply by 1000 when plotting ``psy_ta_rh(...).hr`` on
+  this chart, and divide by 1000 when passing a value read off this chart to
+  ``hr_to_rh()`` or ``enthalpy_air()``.
 * ``PsychrometricPlot`` now labels its own y-axis. Previously it inherited
   ``ThresholdPlot``'s behaviour of labelling the axis with the raw parameter
   name, so the axis read ``hr`` unless the caller set a label. Every caller
