@@ -146,9 +146,17 @@ opening the PR.** Copilot's review is auto-requested by the repo's branch
 ruleset; use the `copilot-review` skill to poll for it and confirm it's against
 the current commit before treating it as done.
 
-CodeRabbit's GitHub App is **not installed** on this repo, so it will not review
-the PR automatically — run it locally instead before opening the PR (or right
-after, against the diff):
+CodeRabbit's GitHub App is installed on this repo and `.coderabbit.yaml`'s
+`auto_review.base_branches` includes `master`, so it also reviews this PR
+automatically — give it a minute or two, then check:
+
+```bash
+gh api repos/pythermalcomfort/pythermalcomfort/pulls/<n>/reviews \
+  --jq '.[] | select(.user.login | test("coderabbit"))'
+```
+
+If it hasn't posted (e.g. `.coderabbit.yaml` changes, rate limits), fall back to
+running it locally against the diff:
 
 ```bash
 coderabbit review --agent --base development --committed
@@ -157,7 +165,7 @@ coderabbit review --agent --base development --committed
 Treat its findings the same way as Copilot's. See the `git-task-tracking` skill
 if a finding should become a tracked issue instead of a same-PR fix.
 
-**Gate:** Copilot's review posted and addressed, `coderabbit review --agent` run
+**Gate:** Copilot's review posted and addressed, CodeRabbit's review (bot or local) run
 and its findings addressed, PR merged, CI green on `master`.
 
 ## 6. Check out master
