@@ -144,8 +144,8 @@ class BaseInputs:
             # Type validation
             expected_types = meta.get("types")
             if expected_types:
-                validate_type(value, f.name, expected_types)
-                # store possibly converted value back
+                value = validate_type(value, f.name, expected_types)
+                # Store the validated and possibly normalized value.
                 setattr(self, f.name, value)
                 continue
 
