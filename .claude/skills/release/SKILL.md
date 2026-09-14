@@ -135,13 +135,30 @@ Then return to step 3.
 
 ## 5. Merge development into master
 
-Open a PR from `development` to `master` and confirm CI passes before merging.
+Open a PR from `development` to `master`.
 
 ```bash
 gh pr create --base master --head development --title "Release X.Y.Z"
 ```
 
-**Gate:** PR merged and CI green on `master`.
+**Wait for both automated reviewers before merging — do not merge right after
+opening the PR.** Copilot's review is auto-requested by the repo's branch
+ruleset; use the `copilot-review` skill to poll for it and confirm it's against
+the current commit before treating it as done.
+
+CodeRabbit's GitHub App is **not installed** on this repo, so it will not review
+the PR automatically — run it locally instead before opening the PR (or right
+after, against the diff):
+
+```bash
+coderabbit review --agent --base development --committed
+```
+
+Treat its findings the same way as Copilot's. See the `git-task-tracking` skill
+if a finding should become a tracked issue instead of a same-PR fix.
+
+**Gate:** Copilot's review posted and addressed, `coderabbit review --agent` run
+and its findings addressed, PR merged, CI green on `master`.
 
 ## 6. Check out master
 
