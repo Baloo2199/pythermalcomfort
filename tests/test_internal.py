@@ -4,6 +4,7 @@ import pytest
 import pythermalcomfort._internal.validation as validation
 from pythermalcomfort._internal.ashrae55 import _check_ashrae55_compliance
 from pythermalcomfort._internal.validation import _mapping, _valid_range, validate_type
+from pythermalcomfort.classes_input import BaseInputs
 
 
 class TestValidRange:
@@ -136,9 +137,15 @@ def test_validate_type() -> None:
     validate_type(np.asarray([1, 2, 3]), "array_value", allowed)
 
     # np scalars should be converted to native types via .item()
-    validate_type(np.float32(40.0), "np_float32", allowed)
-    validate_type(np.int32(100), "np_int32", allowed)
-    validate_type(np.int64(200), "np_int64", allowed)
+    normalized_float = validate_type(np.float32(40.0), "np_float32", allowed)
+    normalized_int32 = validate_type(np.int32(100), "np_int32", allowed)
+    normalized_int64 = validate_type(np.int64(200), "np_int64", allowed)
+    assert normalized_float == 40.0
+    assert normalized_int32 == 100
+    assert normalized_int64 == 200
+    assert not isinstance(normalized_float, np.generic)
+    assert not isinstance(normalized_int32, np.generic)
+    assert not isinstance(normalized_int64, np.generic)
 
     # np array of floats and ints should be allowed
     arr_numeric = np.asarray([np.float32(1.0), np.int32(2), 3, 3.52])
@@ -163,3 +170,12 @@ def test_validate_type() -> None:
     with pytest.raises(TypeError) as exc_info:
         validate_type(np.str_("hello"), "np_str", allowed)
     assert "np_str must be one of the following types:" in str(exc_info.value)
+
+
+
+def test_base_inputs_store_normalized_numpy_scalar() -> None:
+    """NumPy scalar inputs are stored as their native Python equivalents."""
+    inputs = BaseInputs(tdb=np.float32(25.0))
+
+    assert inputs.tdb == 25.0
+    assert not isinstance(inputs.tdb, np.generic)
