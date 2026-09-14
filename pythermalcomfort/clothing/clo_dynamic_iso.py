@@ -30,7 +30,7 @@ def clo_dynamic_iso(
         rate using the formula given in ISO 7730 Annex C / ISO 9920 for when the actual
         walking speed is undefined: v_walk = 0.0052 * (M - 58), clipped to 0-0.7 m/s,
         where M is the metabolic rate in W/m2. This is a different formula from
-        :py:meth:`pythermalcomfort.clothing.v_relative`'s activity-generated air speed
+        :py:meth:`pythermalcomfort.environment.v_relative`'s activity-generated air speed
         (0.3 * (met - 1)), which is used in the whole-body PMV heat balance rather than
         for the clothing dynamic insulation correction.
 

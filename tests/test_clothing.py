@@ -113,7 +113,7 @@ def test_clo_total_insulation() -> None:
 
     clo = 0.3
     i_a = 0.7
-    np.isclose(
+    assert np.isclose(
         clo_total_insulation(
             i_t=clo + i_a,
             vr=0.26,

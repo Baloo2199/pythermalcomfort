@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import warnings
 from enum import Enum
+from functools import wraps
 from typing import NamedTuple
 
 import numpy as np
@@ -308,7 +309,10 @@ class DefaultSkinTemperature(NamedTuple):
 
 def _deprecated_utility(function_name: str, new_module: str):
     """Create a compatibility wrapper for a utility moved to a public package."""
+    module = importlib.import_module(f"pythermalcomfort.{new_module}")
+    target = getattr(module, function_name)
 
+    @wraps(target)
     def wrapper(*args, **kwargs):
         warnings.warn(
             f"pythermalcomfort.utilities.{function_name} is deprecated; "
@@ -316,15 +320,8 @@ def _deprecated_utility(function_name: str, new_module: str):
             DeprecationWarning,
             stacklevel=2,
         )
-        module = importlib.import_module(f"pythermalcomfort.{new_module}")
-        return getattr(module, function_name)(*args, **kwargs)
+        return target(*args, **kwargs)
 
-    wrapper.__name__ = function_name
-    wrapper.__qualname__ = function_name
-    wrapper.__doc__ = (
-        f"Deprecated compatibility wrapper; use "
-        f"pythermalcomfort.{new_module}.{function_name}."
-    )
     return wrapper
 
 
@@ -352,7 +349,20 @@ _MOVED_PUBLIC_FUNCTIONS = {
     "clo_correction_factor_environment": "clothing",
 }
 
-for _function_name, _new_module in _MOVED_PUBLIC_FUNCTIONS.items():
-    globals()[_function_name] = _deprecated_utility(_function_name, _new_module)
 
-del _function_name, _new_module
+def __getattr__(name: str):
+    """Create moved-public-function shims lazily to avoid circular imports."""
+    try:
+        new_module = _MOVED_PUBLIC_FUNCTIONS[name]
+    except KeyError as error:
+        message = f"module {__name__!r} has no attribute {name!r}"
+        raise AttributeError(message) from error
+
+    wrapper = _deprecated_utility(name, new_module)
+    globals()[name] = wrapper
+    return wrapper
+
+
+def __dir__() -> list[str]:
+    """Include lazily created compatibility names in module introspection."""
+    return sorted(set(globals()) | set(_MOVED_PUBLIC_FUNCTIONS))

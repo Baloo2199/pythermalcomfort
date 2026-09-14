@@ -90,7 +90,7 @@ def test_v_relative() -> None:
 def test_t_o() -> None:
     """Test the operative temperature function with various inputs."""
     assert operative_tmp(25, 25, 0.1) == 25
-    np.allclose(
+    assert np.allclose(
         operative_tmp([25, 20], 30, 0.3),
         [26.83, 23.66],
         atol=1e-2,
@@ -103,7 +103,7 @@ def test_t_o() -> None:
 
 def test_t_mrt() -> None:
     """Test the mean radiant temperature function with various inputs."""
-    np.allclose(
+    assert np.allclose(
         mean_radiant_tmp(
             tg=[53.2, 55, 55],
             tdb=30,
@@ -114,7 +114,7 @@ def test_t_mrt() -> None:
         [74.8, 77.8, 71.9],
         atol=1e-1,
     )
-    np.allclose(
+    assert np.allclose(
         mean_radiant_tmp(
             tg=[25.42, 26.42, 26.42, 26.42],
             tdb=26.10,
@@ -124,6 +124,7 @@ def test_t_mrt() -> None:
         ),
         [24.2, 27.0, np.nan, np.nan],
         atol=1e-1,
+        equal_nan=True,
     )
 
 
@@ -139,7 +140,6 @@ def test_compare_results_wind_profile_calculator() -> None:
     z0 = 0.01  # m
     expected = 5  # m/s from Wind Profile Calculator
     result = scale_wind_speed_log(v_z1=v10, z2=z2, z1=z1, z0=z0, round_output=False)
-    print(result)
     assert np.allclose(result.v_z2, expected, rtol=1e-2)
 
     v10 = 7.69  # m/s
@@ -147,7 +147,6 @@ def test_compare_results_wind_profile_calculator() -> None:
     z0 = 0.1  # m
     expected = 5  # m/s from Wind Profile Calculator
     result = scale_wind_speed_log(v_z1=v10, z2=z2, z1=10, z0=z0, round_output=False)
-    print(result)
     assert np.allclose(result.v_z2, expected, rtol=1e-2)
 
     v_z1 = 5.0  # m/s
@@ -155,7 +154,6 @@ def test_compare_results_wind_profile_calculator() -> None:
     z0 = 0.1  # m
     expected = 7.39  # m/s from Wind Profile Calculator
     result = scale_wind_speed_log(v_z1=v_z1, z2=z2, z1=10, z0=z0, round_output=False)
-    print(result)
     assert np.allclose(result.v_z2, expected, rtol=1e-2)
 
 
@@ -262,11 +260,20 @@ def test_large_and_small_z0() -> None:
     assert result_large.v_z2 > 0
 
 
-def test_legacy_scale_wind_speed_log_shim() -> None:
-    """The former utils import path forwards and warns during migration."""
-    from pythermalcomfort.utils import scale_wind_speed_log as legacy_scale
+@pytest.mark.parametrize(
+    "module_path",
+    [
+        pytest.param("pythermalcomfort.utils", id="package"),
+        pytest.param("pythermalcomfort.utils.scale_wind_speed_log", id="submodule"),
+    ],
+)
+def test_legacy_scale_wind_speed_log_shims(module_path: str) -> None:
+    """Both former utils import paths return the expected value and warn."""
+    from importlib import import_module
+
+    legacy_scale = import_module(module_path).scale_wind_speed_log
 
     with pytest.warns(DeprecationWarning, match="pythermalcomfort.environment"):
         legacy = legacy_scale(5.0, 2.0, round_output=False)
-    current = scale_wind_speed_log(5.0, 2.0, round_output=False)
-    assert np.allclose(legacy.v_z2, current.v_z2)
+
+    assert legacy.v_z2 == pytest.approx(3.83504999)
