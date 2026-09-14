@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -57,13 +59,27 @@ def clo_total_insulation(
     i_a_static = np.asarray(i_a_static)
     i_cl = np.asarray(i_cl)
 
-    def normal_clothing(_vr, _vw, _i_t) -> float:
+    def normal_clothing(
+        _vr: NDArray[np.number[Any]],
+        _vw: NDArray[np.number[Any]],
+        _i_t: NDArray[np.number[Any]],
+    ) -> NDArray[np.floating[Any]]:
         return _i_t * _correction_normal_clothing(_vw=_vw, _vr=_vr)
 
-    def nude(_vr, _vw, _i_a_static) -> float:
+    def nude(
+        _vr: NDArray[np.number[Any]],
+        _vw: NDArray[np.number[Any]],
+        _i_a_static: NDArray[np.number[Any]],
+    ) -> NDArray[np.floating[Any]]:
         return _i_a_static * _correction_nude(_vr=_vr, _vw=_vw)
 
-    def low_clothing(_vr, _vw, _i_a_static, _i_cl, _i_t) -> float:
+    def low_clothing(
+        _vr: NDArray[np.number[Any]],
+        _vw: NDArray[np.number[Any]],
+        _i_a_static: NDArray[np.number[Any]],
+        _i_cl: NDArray[np.number[Any]],
+        _i_t: NDArray[np.number[Any]],
+    ) -> NDArray[np.floating[Any]]:
         return (
             (0.6 - _i_cl) * nude(_vr, _vw, _i_a_static)
             + _i_cl * normal_clothing(_vr, _vw, _i_t)
