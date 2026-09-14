@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping
 from typing import Any
 
@@ -30,9 +31,12 @@ from pythermalcomfort.utilities import hr_to_rh, psy_ta_rh
 #: :func:`~pythermalcomfort.utilities.hr_to_rh` work in.
 _G_PER_KG = 1000.0
 
-#: Any y-axis upper bound below this is almost certainly kg/kg dry air left
-#: over from before 4.5.0.  Typical indoor humidity ratios are 5-20 g/kg, so a
-#: legitimate chart never tops out below 1 g/kg.
+#: A y-axis upper bound below this is *usually* kg/kg dry air left over from
+#: before 4.5.0, since typical indoor humidity ratios are 5-20 g/kg.  It is not
+#: conclusive, though: sub-freezing air genuinely holds well under 1 g/kg (at
+#: -20 degC, 0.5 g/kg is roughly 80 % RH), and this package covers cold stress.
+#: So this triggers a warning rather than an error, and the message covers both
+#: readings.
 _MIN_PLAUSIBLE_HR_MAX_G_KG = 1.0
 
 #: Default y-axis label.  Spelled out because the denominator being *dry* air
@@ -59,8 +63,9 @@ class PsychrometricPlot(ThresholdPlot):
         :func:`~pythermalcomfort.utilities.hr_to_rh`, and
         :func:`~pythermalcomfort.utilities.enthalpy_air` still use kg/kg dry
         air, so multiply by 1000 when feeding their output to this class.
-        A y-axis whose upper bound is below 1 g/kg is rejected with a message
-        pointing here, so the old range cannot silently render a blank chart.
+        A y-axis whose upper bound is below 1 g/kg warns, so an un-migrated
+        range does not silently render a blank chart.  It warns rather than
+        raises because sub-1 g/kg is physically real in cold or very dry air.
 
     Examples
     --------
@@ -152,8 +157,13 @@ class PsychrometricPlot(ThresholdPlot):
         ------
         ValueError
             If ``name`` is not ``'hr'``, conflicts with a fixed parameter set
-            via :meth:`set_params`, if range/resolution are invalid, or if
-            ``max_val`` looks like a pre-4.5.0 kg/kg value.
+            via :meth:`set_params`, or if range/resolution are invalid.
+
+        Warns
+        -----
+        UserWarning
+            If ``max_val`` is below 1 g/kg, which usually means a pre-4.5.0
+            kg/kg range, but is legitimate for cold or very dry air.
         """
         if name != "hr":
             raise ValueError(
@@ -171,12 +181,15 @@ class PsychrometricPlot(ThresholdPlot):
         min_float, max_float = _parse_axis_range(min_val, max_val)
         if max_float < _MIN_PLAUSIBLE_HR_MAX_G_KG:
             msg = (
-                f"The y-axis upper bound is {max_float:g} g/kg dry air, which is "
-                "below any realistic humidity ratio. Since 4.5.0 this axis is in "
-                "g/kg dry air, not kg/kg: pass "
-                f"{max_float * _G_PER_KG:g} instead of {max_float:g}."
+                f"The y-axis upper bound is {max_float:g} g/kg dry air. Since "
+                "4.5.0 this axis is in g/kg dry air rather than kg/kg, so if "
+                f"this range was written for an older version, pass "
+                f"{max_float * _G_PER_KG:g} instead of {max_float:g}. If you "
+                "are deliberately charting very cold or very dry air, where "
+                "humidity ratios below 1 g/kg are real, this warning can be "
+                "ignored."
             )
-            raise ValueError(msg)
+            warnings.warn(msg, UserWarning, stacklevel=2)
         resolution_float = _validate_resolution(resolution)
         self._y_axis = _AxisConfig(
             name=name,

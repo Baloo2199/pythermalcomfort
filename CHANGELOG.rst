@@ -9,9 +9,11 @@ Unreleased
   ratios are 5-20 g/kg, which is far easier to read than 0.005-0.020 kg/kg.
   Pass ``.set_y_axis("hr", 0.0, 30.0, resolution=1.0)`` where you previously
   passed ``.set_y_axis("hr", 0.0, 0.030, resolution=0.001)``. A y-axis whose
-  upper bound is below 1 g/kg is now rejected with a message explaining the
-  change, so an un-migrated call fails immediately rather than silently
-  rendering a blank chart
+  upper bound is below 1 g/kg now emits a ``UserWarning`` explaining the
+  change, so an un-migrated call is flagged rather than silently rendering a
+  blank chart. It warns rather than raises because humidity ratios below
+  1 g/kg are physically real in cold or very dry air (at -20 degC, 0.5 g/kg is
+  roughly 80 % RH), which this package supports
   (`#338 <https://github.com/pythermalcomfort/pythermalcomfort/issues/338>`_).
 
   This does **not** change the psychrometric utilities. ``psy_ta_rh(...).hr``,
