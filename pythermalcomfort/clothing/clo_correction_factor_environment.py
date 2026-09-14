@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -42,7 +44,11 @@ def clo_correction_factor_environment(
     v_walk = np.asarray(v_walk)
     i_cl = np.asarray(i_cl)
 
-    def correction_low_clothing(_vr, _vw, _i_cl) -> float:
+    def correction_low_clothing(
+        _vr: NDArray[np.number[Any]],
+        _vw: NDArray[np.number[Any]],
+        _i_cl: NDArray[np.number[Any]],
+    ) -> NDArray[np.floating[Any]]:
         return (
             (0.6 - _i_cl) * _correction_nude(_vr, _vw)
             + _i_cl * _correction_normal_clothing(_vr, _vw)
