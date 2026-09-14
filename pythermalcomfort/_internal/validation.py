@@ -217,8 +217,12 @@ def _mapping(
     return categories[idx]
 
 
-def validate_type(value, name: str, allowed_types: tuple):
-    """Validate the type of a value against allowed types."""
+def validate_type(
+    value: Any,
+    name: str,
+    allowed_types: tuple[type, ...],
+) -> Any:
+    """Validate a value and return it with NumPy scalars normalized."""
     if isinstance(value, np.generic):
         value = value.item()
     if not isinstance(value, allowed_types):
@@ -226,3 +230,4 @@ def validate_type(value, name: str, allowed_types: tuple):
             f"{name} must be one of the following types: {allowed_types}."
         )
         raise TypeError(invalid_type_msg)
+    return value
