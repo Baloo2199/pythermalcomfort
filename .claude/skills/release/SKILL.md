@@ -91,8 +91,8 @@ double-increment:
 
 ```bash
 git add <reformatted-file>
-git commit -m "Bump version: A.B.C → X.Y.Z"   # exact message bump-my-version printed
-git tag vX.Y.Z -m "Bump version: A.B.C → X.Y.Z"
+git commit -m "Bump version: A.B.C → X.Y.Zrc1"   # exact message bump-my-version printed
+git tag vX.Y.Zrc1 -m "Bump version: A.B.C → X.Y.Zrc1"
 ```
 
 **Gate:** tag `vX.Y.Zrc1` exists and is pushed, and `git merge-base --is-ancestor
@@ -160,7 +160,7 @@ explicitly.
 **Verify the branch first — CI will not do it for you:**
 
 ```bash
-test "$(git rev-parse --abbrev-ref HEAD)" = master || echo "STOP: not on master"
+test "$(git rev-parse --abbrev-ref HEAD)" = master || { echo "STOP: not on master"; exit 1; }
 pipenv run bump-my-version bump --new-version X.Y.Z
 git push origin master --tags
 ```
