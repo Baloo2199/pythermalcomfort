@@ -91,8 +91,8 @@ double-increment:
 
 ```bash
 git add <reformatted-file>
-git commit -m "Bump version: A.B.C → X.Y.Z"   # exact message bump-my-version printed
-git tag vX.Y.Z -m "Bump version: A.B.C → X.Y.Z"
+git commit -m "Bump version: A.B.C → X.Y.Zrc1"   # exact message bump-my-version printed
+git tag vX.Y.Zrc1 -m "Bump version: A.B.C → X.Y.Zrc1"
 ```
 
 **Gate:** tag `vX.Y.Zrc1` exists and is pushed, and `git merge-base --is-ancestor
@@ -135,13 +135,38 @@ Then return to step 3.
 
 ## 5. Merge development into master
 
-Open a PR from `development` to `master` and confirm CI passes before merging.
+Open a PR from `development` to `master`.
 
 ```bash
 gh pr create --base master --head development --title "Release X.Y.Z"
 ```
 
-**Gate:** PR merged and CI green on `master`.
+**Wait for both automated reviewers before merging — do not merge right after
+opening the PR.** Copilot's review is auto-requested by the repo's branch
+ruleset; use the `copilot-review` skill to poll for it and confirm it's against
+the current commit before treating it as done.
+
+CodeRabbit's GitHub App is installed on this repo and `.coderabbit.yaml`'s
+`auto_review.base_branches` includes `master`, so it also reviews this PR
+automatically — give it a minute or two, then check:
+
+```bash
+gh api repos/pythermalcomfort/pythermalcomfort/pulls/<n>/reviews \
+  --jq '.[] | select(.user.login | test("coderabbit"))'
+```
+
+If it hasn't posted (e.g. `.coderabbit.yaml` changes, rate limits), fall back to
+running it locally against the diff:
+
+```bash
+coderabbit review --agent --base development --committed
+```
+
+Treat its findings the same way as Copilot's. See the `git-task-tracking` skill
+if a finding should become a tracked issue instead of a same-PR fix.
+
+**Gate:** Copilot's review posted and addressed, CodeRabbit's review (bot or local) run
+and its findings addressed, PR merged, CI green on `master`.
 
 ## 6. Check out master
 
@@ -160,7 +185,7 @@ explicitly.
 **Verify the branch first — CI will not do it for you:**
 
 ```bash
-test "$(git rev-parse --abbrev-ref HEAD)" = master || echo "STOP: not on master"
+test "$(git rev-parse --abbrev-ref HEAD)" = master || { echo "STOP: not on master"; exit 1; }
 pipenv run bump-my-version bump --new-version X.Y.Z
 git push origin master --tags
 ```

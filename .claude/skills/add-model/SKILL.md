@@ -5,7 +5,7 @@ description: Add a new thermal comfort model to pythermalcomfort, wiring it acro
 
 # Adding a thermal comfort model
 
-A model is not "added" until **seven** files agree. Miss one and the failure is
+A model is not "added" until **eight** files agree. Miss one and the failure is
 usually silent — the function imports fine but is absent from the public API, or
 undocumented, or unvalidated. Work through the checklist in order.
 
