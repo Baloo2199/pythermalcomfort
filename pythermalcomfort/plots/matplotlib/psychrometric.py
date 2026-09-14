@@ -24,6 +24,21 @@ from pythermalcomfort.plots.matplotlib.threshold import (
 )
 from pythermalcomfort.utilities import hr_to_rh, psy_ta_rh
 
+#: Grams of water per kilogram of water, used to convert between the
+#: chart's display units (g/kg dry air) and the kg/kg dry air that
+#: :func:`~pythermalcomfort.utilities.psy_ta_rh` and
+#: :func:`~pythermalcomfort.utilities.hr_to_rh` work in.
+_G_PER_KG = 1000.0
+
+#: Any y-axis upper bound below this is almost certainly kg/kg dry air left
+#: over from before 4.5.0.  Typical indoor humidity ratios are 5-20 g/kg, so a
+#: legitimate chart never tops out below 1 g/kg.
+_MIN_PLAUSIBLE_HR_MAX_G_KG = 1.0
+
+#: Default y-axis label.  Spelled out because the denominator being *dry* air
+#: is the part readers get wrong.
+_HR_AXIS_LABEL = r"Humidity ratio [g$_\mathrm{water}$/kg$_\mathrm{dry\,air}$]"
+
 
 class PsychrometricPlot(ThresholdPlot):
     """Configure and render a psychrometric chart with threshold regions.
@@ -35,6 +50,18 @@ class PsychrometricPlot(ThresholdPlot):
     underlying model.  Constant-RH background curves are drawn on top of
     the threshold regions.
 
+    .. versionchanged:: 4.5.0
+        The y-axis is expressed in **g/kg dry air** rather than kg/kg dry air,
+        because typical indoor values (roughly 5-20 g/kg) are far easier to
+        read than their 0.005-0.020 kg/kg equivalents.  Pass ``0.0, 30.0``
+        where you previously passed ``0.0, 0.030``.  This affects only the
+        chart; :func:`~pythermalcomfort.utilities.psy_ta_rh`,
+        :func:`~pythermalcomfort.utilities.hr_to_rh`, and
+        :func:`~pythermalcomfort.utilities.enthalpy_air` still use kg/kg dry
+        air, so multiply by 1000 when feeding their output to this class.
+        A y-axis whose upper bound is below 1 g/kg is rejected with a message
+        pointing here, so the old range cannot silently render a blank chart.
+
     Examples
     --------
     .. code-block:: python
@@ -45,7 +72,7 @@ class PsychrometricPlot(ThresholdPlot):
         result = (
             PsychrometricPlot(pmv_ppd_iso)
             .set_x_axis("tdb", 10.0, 36.0, resolution=0.2)
-            .set_y_axis("hr", 0.0, 0.030, resolution=0.0005)
+            .set_y_axis("hr", 0.0, 30.0, resolution=0.5)
             .set_params(vr=0.10, met=1.2, clo=0.5, wme=0.0)
             .set_regions(output="pmv", thresholds=[-0.5, 0.5])
             .plot(title="PMV — Psychrometric Chart")
@@ -110,11 +137,11 @@ class PsychrometricPlot(ThresholdPlot):
         name : str
             Must be ``'hr'``.
         min_val : float
-            Minimum humidity ratio (kg/kg).
+            Minimum humidity ratio, [g water / kg dry air].
         max_val : float
-            Maximum humidity ratio (kg/kg).
+            Maximum humidity ratio, [g water / kg dry air].
         resolution : float
-            Grid step along the y-axis.
+            Grid step along the y-axis, [g water / kg dry air].
 
         Returns
         -------
@@ -125,7 +152,8 @@ class PsychrometricPlot(ThresholdPlot):
         ------
         ValueError
             If ``name`` is not ``'hr'``, conflicts with a fixed parameter set
-            via :meth:`set_params`, or if range/resolution are invalid.
+            via :meth:`set_params`, if range/resolution are invalid, or if
+            ``max_val`` looks like a pre-4.5.0 kg/kg value.
         """
         if name != "hr":
             raise ValueError(
@@ -141,6 +169,14 @@ class PsychrometricPlot(ThresholdPlot):
             raise ValueError("x and y axis parameters must be different.")
 
         min_float, max_float = _parse_axis_range(min_val, max_val)
+        if max_float < _MIN_PLAUSIBLE_HR_MAX_G_KG:
+            msg = (
+                f"The y-axis upper bound is {max_float:g} g/kg dry air, which is "
+                "below any realistic humidity ratio. Since 4.5.0 this axis is in "
+                "g/kg dry air, not kg/kg: pass "
+                f"{max_float * _G_PER_KG:g} instead of {max_float:g}."
+            )
+            raise ValueError(msg)
         resolution_float = _validate_resolution(resolution)
         self._y_axis = _AxisConfig(
             name=name,
@@ -173,7 +209,9 @@ class PsychrometricPlot(ThresholdPlot):
         x-axis values serve as an approximation (accurate when ``tr ≈ tdb``).
         """
         x_flat = np.asarray(x).ravel()
-        y_flat = np.asarray(y).ravel()  # hr (kg/kg)
+        # The axis, and therefore the grid, is in g/kg dry air; hr_to_rh below
+        # expects kg/kg dry air.
+        y_flat = np.asarray(y).ravel() / _G_PER_KG
 
         # Determine which temperature to use for the hr → rh conversion.
         if self._x_axis.name == "tdb":
@@ -249,6 +287,9 @@ class PsychrometricPlot(ThresholdPlot):
         - A white fill masking the physically impossible RH > 100 % area,
           starting exactly at the smooth saturation curve.
         - Dotted constant-RH background curves at 10 % intervals.
+        - A y-axis label naming the humidity ratio and its units, replacing
+          the bare parameter name the base class would otherwise use.  Call
+          ``result.ax.set_ylabel(...)`` afterwards to override it.
 
         Parameters
         ----------
@@ -301,7 +342,8 @@ class PsychrometricPlot(ThresholdPlot):
         # Because the contourf fills the entire grid (super-saturated cells are
         # evaluated at rh=100% rather than NaN), there are no jagged pcolormesh
         # edges to cover.  The mask starts exactly at the smooth saturation curve.
-        hr_100 = psy_ta_rh(t_dense, np.full_like(t_dense, 100.0)).hr
+        # psy_ta_rh returns kg/kg dry air; the axis is g/kg dry air.
+        hr_100 = psy_ta_rh(t_dense, np.full_like(t_dense, 100.0)).hr * _G_PER_KG
         ax.fill_between(
             t_dense,
             hr_100,
@@ -334,7 +376,10 @@ class PsychrometricPlot(ThresholdPlot):
 
         step = _PlotDefaults.Psychrometric.rh_curve_step
         for rh_target in range(step, 110, step):
-            hr_line = psy_ta_rh(t_dense, np.full_like(t_dense, float(rh_target))).hr
+            hr_line = (
+                psy_ta_rh(t_dense, np.full_like(t_dense, float(rh_target))).hr
+                * _G_PER_KG
+            )
             in_range = hr_line <= self._y_axis.max_val
             if not in_range.any():
                 continue
@@ -355,6 +400,13 @@ class PsychrometricPlot(ThresholdPlot):
                 fontsize=_PlotDefaults.Psychrometric.rh_label_fontsize,
                 zorder=_PlotDefaults.Psychrometric.zorder_rh_lines,
             )
+
+        # ThresholdPlot.plot() labels the y-axis with the raw parameter name,
+        # which here would be the bare string "hr".  Every caller was therefore
+        # writing its own label, and they disagreed with each other about the
+        # units.  Give the chart a correct default instead; callers who want
+        # something else can still override it via result.ax.set_ylabel().
+        ax.set_ylabel(_HR_AXIS_LABEL)
 
         ax.set_xlim(self._x_axis.min_val, self._x_axis.max_val)
         ax.set_ylim(self._y_axis.min_val, self._y_axis.max_val)

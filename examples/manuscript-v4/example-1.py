@@ -159,7 +159,7 @@ fig2, (ax_psy, ax_sum) = plt.subplots(
 (
     PsychrometricPlot(pmv_ppd_iso)
     .set_x_axis("tdb", 19, 29, resolution=1)
-    .set_y_axis("hr", 0.0, 0.025, resolution=0.0015)
+    .set_y_axis("hr", 0.0, 25.0, resolution=1.5)
     .set_params(vr=0.1, met=1.2, clo=0.5, wme=0.0)
     .set_regions(
         output="pmv",
@@ -170,10 +170,11 @@ fig2, (ax_psy, ax_sum) = plt.subplots(
     .plot(ax=ax_psy, legend=True, legend_kws=legend_kws)
 )
 ax_psy.set_xlabel(r"Dry-bulb temperature ($^\circ$C)")
-ax_psy.set_ylabel(r"Humidity ratio (kg$_\mathrm{water}$/kg$_\mathrm{dry\,air}$)")
+# The y-label is supplied by PsychrometricPlot itself and is already in g/kg.
 
-# Overlay scatter measurements (convert rh to hr for the y-axis)
-hr_meas = psy_ta_rh(tdb_meas, rh_meas).hr
+# Overlay scatter measurements. psy_ta_rh returns humidity ratio in kg/kg dry
+# air, while the chart's y-axis is in g/kg dry air, so scale before plotting.
+hr_meas = psy_ta_rh(tdb_meas, rh_meas).hr * 1000.0
 ax_psy.scatter(
     tdb_meas,
     hr_meas,
