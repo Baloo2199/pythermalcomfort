@@ -124,8 +124,12 @@ dict-style access.
 5. Export the function
 -----------------------
 
-Add the function to ``pythermalcomfort/models/__init__.py`` so it is
-accessible as ``from pythermalcomfort.models import my_model``.
+Export each public calculation from the ``__init__.py`` of its selected package
+(``models``, ``environment``, ``psychrometrics``, or ``clothing``). For example,
+add a model to ``pythermalcomfort/models/__init__.py`` so it is accessible as
+``from pythermalcomfort.models import my_model``. Truly generic utilities remain
+in ``pythermalcomfort/utilities.py`` and do not need a package export. Private
+helpers under ``pythermalcomfort/_internal`` must not be publicly exported.
 
 6. Write tests
 ---------------
