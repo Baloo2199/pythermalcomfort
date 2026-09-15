@@ -8,41 +8,6 @@ Unreleased
   ``ltime`` keyword argument (e.g. ``1.5`` became one iteration, ``"1"`` was
   accepted as a string) instead of raising. Non-``int`` values now raise
   ``TypeError``.
-
-4.4.3 (2026-09-14)
-------------------
-
-* Fixed ``JOS3.dict_results()`` returning body part names instead of simulated
-  values (`#264 <https://github.com/pythermalcomfort/pythermalcomfort/issues/264>`_).
-  Each per-segment column was built by zipping its keys against a ``JOS3BodyParts``
-  ``__dict__``; iterating a dict yields its keys, so roughly 570 of the 577 columns
-  held strings such as ``"head"`` rather than temperatures. Only the aggregate
-  scalars (``t_skin_mean`` and similar) were correct. ``JOS3.to_csv()`` is affected
-  too, since it is built on ``dict_results()``.
-* Fixed per-segment values for variables defined on only part of the body
-  (``t_muscle``, ``t_fat``) in ``JOS3.dict_results()``. Their column names came from
-  ``VINDEX`` while their values were taken as the first *n* entries of a full
-  17-segment container, so ``t_muscle_pelvis`` carried the neck's value. Names and
-  values are now selected with the same indices. Note ``t_superficial_vein`` remains
-  mislabelled: it packs 12 limb values into the container's first 12 slots, and
-  relabelling requires confirming the intended segment mapping.
-* Fixed ``examples/calc_jos3.py`` setting ``model.icl``, which ``JOS3`` does not
-  define. Clothing insulation is exposed as ``clo``, so the assignment created an
-  unused attribute and the Stolwijk & Hardy validation ran at 0 clo, i.e. a nude
-  subject, rather than the intended 0.3 clo pattern.
-* The JOS-3 human-subject reference data ships as CSV instead of ``.xlsx``. Reading
-  it previously required ``openpyxl``, which is not a dependency of this package, so
-  ``validation_simulation()`` failed for anyone running the examples as documented.
-  The values are unchanged; read them with
-  ``pd.read_csv(..., float_precision="round_trip")``.
-* Added ``examples/manuscript-v4/``, the reproducible scripts behind the figures in
-  the *Building Simulation* manuscript describing this package, including a new
-  JOS-3 transient example comparing simulated rectal and mean skin temperature
-  against Stolwijk & Hardy (1966) human-subject data.
-* Sped up ``two_nodes_gagge_sleep`` by compiling its stateful simulation loop
-  with Numba while preserving its public output values and shapes. Empty
-  ``tdb``/``tr``/``v``/``rh``/``clo``/``thickness_quilt`` inputs now raise a
-  clear ``ValueError`` instead of failing with an unrelated ``TypeError``.
 * Deprecated the following legacy public import paths. They continue to work for two
   minor releases and emit ``DeprecationWarning`` pointing to their new locations;
   this is not an immediate breaking change.
@@ -105,6 +70,43 @@ Unreleased
   ``pythermalcomfort._internal.validation`` as ``_valid_range`` and ``_mapping``.
   These private helpers were never public API, so no compatibility aliases are
   provided.
+* Fixed ``validate_type`` so NumPy scalar inputs are returned as native Python
+  scalars, and updated input dataclasses to store those normalized values.
+
+4.4.3 (2026-09-14)
+------------------
+
+* Fixed ``JOS3.dict_results()`` returning body part names instead of simulated
+  values (`#264 <https://github.com/pythermalcomfort/pythermalcomfort/issues/264>`_).
+  Each per-segment column was built by zipping its keys against a ``JOS3BodyParts``
+  ``__dict__``; iterating a dict yields its keys, so roughly 570 of the 577 columns
+  held strings such as ``"head"`` rather than temperatures. Only the aggregate
+  scalars (``t_skin_mean`` and similar) were correct. ``JOS3.to_csv()`` is affected
+  too, since it is built on ``dict_results()``.
+* Fixed per-segment values for variables defined on only part of the body
+  (``t_muscle``, ``t_fat``) in ``JOS3.dict_results()``. Their column names came from
+  ``VINDEX`` while their values were taken as the first *n* entries of a full
+  17-segment container, so ``t_muscle_pelvis`` carried the neck's value. Names and
+  values are now selected with the same indices. Note ``t_superficial_vein`` remains
+  mislabelled: it packs 12 limb values into the container's first 12 slots, and
+  relabelling requires confirming the intended segment mapping.
+* Fixed ``examples/calc_jos3.py`` setting ``model.icl``, which ``JOS3`` does not
+  define. Clothing insulation is exposed as ``clo``, so the assignment created an
+  unused attribute and the Stolwijk & Hardy validation ran at 0 clo, i.e. a nude
+  subject, rather than the intended 0.3 clo pattern.
+* The JOS-3 human-subject reference data ships as CSV instead of ``.xlsx``. Reading
+  it previously required ``openpyxl``, which is not a dependency of this package, so
+  ``validation_simulation()`` failed for anyone running the examples as documented.
+  The values are unchanged; read them with
+  ``pd.read_csv(..., float_precision="round_trip")``.
+* Added ``examples/manuscript-v4/``, the reproducible scripts behind the figures in
+  the *Building Simulation* manuscript describing this package, including a new
+  JOS-3 transient example comparing simulated rectal and mean skin temperature
+  against Stolwijk & Hardy (1966) human-subject data.
+* Sped up ``two_nodes_gagge_sleep`` by compiling its stateful simulation loop
+  with Numba while preserving its public output values and shapes. Empty
+  ``tdb``/``tr``/``v``/``rh``/``clo``/``thickness_quilt`` inputs now raise a
+  clear ``ValueError`` instead of failing with an unrelated ``TypeError``.
 * Addressed Copilot review feedback on the 4.4.1 ``phs`` fix: pass ``param_name``
   explicitly to ``valid_range()`` for the ``(tr - tdb)`` check, and added regression
   tests for the applicability-limit and minute-1 skin-temperature behavior.

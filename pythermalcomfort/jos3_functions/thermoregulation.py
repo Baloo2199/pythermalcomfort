@@ -374,7 +374,6 @@ def fixed_hr(hr: np.ndarray) -> np.ndarray:
     return _fixed_hr
 
 
-# TODO this function is a duplicate in utils
 def operative_temp(tdb, tr, hc, hr):
     """Calculate operative temperature [°C].
 
@@ -398,7 +397,6 @@ def operative_temp(tdb, tr, hc, hr):
     return to
 
 
-# TODO this function is a duplicate in utils and they are different
 def clo_area_factor(clo):
     """Calculate clothing area factor.
 

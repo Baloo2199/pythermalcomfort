@@ -12,7 +12,7 @@ def dew_point_tmp(
 ) -> NDArray[np.float64]:
     """Calculate the dew point temperature.
 
-    The equation use the Magnus formula using the coefficients from
+    The equation uses the Magnus formula with coefficients from
     the 2024 edition of the Guide to Instruments and Methods of
     Observation. [WMO2024]_.
 

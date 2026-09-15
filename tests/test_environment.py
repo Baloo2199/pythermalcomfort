@@ -50,16 +50,18 @@ def test_running_mean_outdoor_temperature() -> None:
     assert (running_mean_outdoor_temperature([20, 20], alpha=0.9)) == 20
     assert (running_mean_outdoor_temperature([20, 20, 20, 20], alpha=0.7)) == 20
     assert (running_mean_outdoor_temperature([20, 20, 20, 20], alpha=0.5)) == 20
+    temperatures_ip = [77, 77, 77, 77, 77, 77, 77]
     assert (
         running_mean_outdoor_temperature(
-            [77, 77, 77, 77, 77, 77, 77],
+            temperatures_ip,
             alpha=0.8,
             units=Units.IP.value,
         )
     ) == 77
+    assert temperatures_ip == [77, 77, 77, 77, 77, 77, 77]
     assert (
         running_mean_outdoor_temperature(
-            [77, 77, 77, 77, 77, 77, 77],
+            temperatures_ip,
             alpha=0.8,
             units=Units.IP.value,
         )
@@ -272,6 +274,11 @@ def test_legacy_scale_wind_speed_log_shims(module_path: str) -> None:
     from importlib import import_module
 
     legacy_scale = import_module(module_path).scale_wind_speed_log
+
+    assert legacy_scale.__doc__ == (
+        "Deprecated alias for pythermalcomfort.environment.scale_wind_speed_log(). "
+        "Import from there instead; this path will be removed after two minor releases."
+    )
 
     with pytest.warns(DeprecationWarning, match="pythermalcomfort.environment"):
         legacy = legacy_scale(5.0, 2.0, round_output=False)

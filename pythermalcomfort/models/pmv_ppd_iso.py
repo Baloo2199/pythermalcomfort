@@ -66,11 +66,14 @@ def pmv_ppd_iso(
     wme : float or list of floats, optional
         External work, [met]. Defaults to 0.
     model : str, optional
-        Supported ISO 7730 edition identifier. Accepted values are "7730-2005"
+        The ISO 7730 edition to reference. Supported values are "7730-2005"
         and "7730-2025"; any other value raises a ``ValueError``. The two
-        accepted editions currently use identical PMV/PPD equations and
-        applicability limits, so this parameter does not affect the numerical
-        result. Defaults to "7730-2025", the current edition of the standard.
+        editions currently use identical PMV/PPD equations and applicability
+        limits, so this parameter does not affect the numerical result. It is
+        retained to record the intended edition, reject unsupported edition
+        values, and allow future differentiation if the editions diverge. The
+        selected edition is not stored on the returned ``PMVPPD`` object.
+        Defaults to "7730-2025", the current edition of the standard.
     units : str, optional
         Select the SI (International System of Units) or the IP (Imperial Units) system.
         Supported values are 'SI' and 'IP'. Defaults to 'SI'.

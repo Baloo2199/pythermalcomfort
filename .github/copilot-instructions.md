@@ -88,7 +88,7 @@ How to add a function (concise, actionable)
      - Keep tests deterministic and small.
 
   5. Documentation & autodoc
-     - Add an ``.. autofunction:: pythermalcomfort.models.<module>.<func>`` entry in the docs
+     - Add an ``.. autofunction:: pythermalcomfort.<package>.<function>`` entry in the docs
        (docs/reference or the file that gathers API docs).
      - Ensure docstring examples are minimal and runnable.
 

@@ -322,6 +322,10 @@ def _deprecated_utility(function_name: str, new_module: str):
         )
         return target(*args, **kwargs)
 
+    wrapper.__doc__ = (
+        f"Deprecated alias for pythermalcomfort.{new_module}.{function_name}(). "
+        "Import from there instead; this path will be removed after two minor releases."
+    )
     return wrapper
 
 

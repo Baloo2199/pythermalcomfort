@@ -21,7 +21,7 @@ def wet_bulb_tmp(
 
     Returns
     -------
-    tdb: float or list of floats
+    wet_bulb_tmp: float or list of floats
         wet-bulb temperature, [°C]
     """
     tdb = np.asarray(tdb, dtype=np.float64)

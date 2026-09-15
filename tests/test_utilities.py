@@ -281,6 +281,10 @@ def test_moved_public_utility_shims(
     deprecated = getattr(utilities, function_name)
 
     assert inspect.signature(deprecated) == inspect.signature(target)
+    assert deprecated.__doc__ == (
+        f"Deprecated alias for pythermalcomfort.{new_module}.{function_name}(). "
+        "Import from there instead; this path will be removed after two minor releases."
+    )
 
     with pytest.warns(DeprecationWarning, match=f"pythermalcomfort.{new_module}"):
         result = deprecated(*args, **kwargs)

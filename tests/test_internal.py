@@ -172,7 +172,6 @@ def test_validate_type() -> None:
     assert "np_str must be one of the following types:" in str(exc_info.value)
 
 
-
 def test_base_inputs_store_normalized_numpy_scalar() -> None:
     """NumPy scalar inputs are stored as their native Python equivalents."""
     inputs = BaseInputs(tdb=np.float32(25.0))

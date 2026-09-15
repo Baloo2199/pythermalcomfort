@@ -23,7 +23,7 @@ def clo_total_insulation(
     the actual thermal insulation from the body surface to the environment, considering
     all clothing, enclosed air layers, and boundary air layers under given environmental
     conditions and activities. It accounts for the effects of movements and wind. The
-    ISO 7790 standard [ISO9920]_ provides different equations to calculate it as a
+    ISO 9920 standard [ISO9920]_ provides different equations to calculate it as a
     function of the total thermal insulation of clothing (`I`:sub:`T`), the insulation
     of the boundary air layer (`I`:sub:`a`), the walking speed (`v`:sub:`walk`), and the
     relative air speed (`v`:sub:`r`). These different equations are used if the person

@@ -16,3 +16,9 @@ def scale_wind_speed_log(*args, **kwargs):
         stacklevel=2,
     )
     return _scale_wind_speed_log(*args, **kwargs)
+
+
+scale_wind_speed_log.__doc__ = (
+    "Deprecated alias for pythermalcomfort.environment.scale_wind_speed_log(). "
+    "Import from there instead; this path will be removed after two minor releases."
+)
