@@ -148,12 +148,19 @@ the current commit before treating it as done.
 
 CodeRabbit's GitHub App is installed on this repo and `.coderabbit.yaml`'s
 `auto_review.base_branches` includes `master`, so it also reviews this PR
-automatically — give it a minute or two, then check:
+automatically — give it a minute or two, then check. Compare the review's
+`commit_id` against the PR's current head — a review is only current if the two
+match; a review left over from an earlier push does not cover the latest commit:
 
 ```bash
 gh api repos/pythermalcomfort/pythermalcomfort/pulls/<n>/reviews \
-  --jq '.[] | select(.user.login | test("coderabbit"))'
+  --jq '.[] | select(.user.login | test("coderabbit")) | {commit: .commit_id, state}'
+gh pr view <n> --json headRefOid -q .headRefOid   # compare against this
 ```
+
+If a new commit is pushed after CodeRabbit already reviewed, it re-reviews
+automatically on the next push — unlike Copilot, which needs an explicit
+re-request (see the `copilot-review` skill).
 
 If it hasn't posted (e.g. `.coderabbit.yaml` changes, rate limits), fall back to
 running it locally against the diff:

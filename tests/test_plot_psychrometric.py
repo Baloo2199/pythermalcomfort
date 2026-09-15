@@ -4,10 +4,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.collections import PolyCollection
 
 from pythermalcomfort.models import pmv_ppd_iso
 from pythermalcomfort.plots.matplotlib import PsychrometricPlot, ThresholdPlotResult
-from pythermalcomfort.utilities import hr_to_rh
+from pythermalcomfort.utilities import hr_to_rh, psy_ta_rh
 
 
 def _new_plot() -> PsychrometricPlot:
@@ -137,3 +138,44 @@ def test_grid_is_evaluated_as_g_per_kg() -> None:
     ).pmv
 
     assert float(actual[0, 0]) == pytest.approx(float(expected), abs=1e-9)
+
+
+def test_rh_curves_and_saturation_mask_render_in_g_per_kg() -> None:
+    """RH iso-lines and the saturation mask must be drawn in g/kg, not kg/kg.
+
+    test_grid_is_evaluated_as_g_per_kg only pins the conversion used to
+    evaluate the model grid. The saturation mask and RH iso-lines are drawn
+    by a separate code path that also calls psy_ta_rh, and could silently
+    regress to kg/kg while that test still passes.
+    """
+    plot = _new_plot()
+    x_min = 20.0
+    plot.set_x_axis("tdb", x_min, 30.0, resolution=5.0)
+    plot.set_y_axis("hr", 0.0, 30.0, resolution=5.0)
+
+    result = plot.plot()
+    ax = result.ax
+
+    expected_50pct_hr = psy_ta_rh(x_min, 50.0).hr * 1000.0
+    dotted_lines = [line for line in ax.lines if line.get_linestyle() == ":"]
+    rh_50_line = next(
+        line
+        for line in dotted_lines
+        if line.get_xdata()[0] == pytest.approx(x_min)
+        and line.get_ydata()[0] == pytest.approx(expected_50pct_hr, abs=1e-6)
+    )
+    # Would be ~0.0076 kg/kg dry air if the conversion regressed.
+    assert rh_50_line.get_ydata()[0] > 1.0
+
+    expected_saturation_hr = psy_ta_rh(x_min, 100.0).hr * 1000.0
+    white_polys = [
+        c
+        for c in ax.collections
+        if isinstance(c, PolyCollection)
+        and np.allclose(np.asarray(c.get_facecolor())[0][:3], 1.0)
+    ]
+    assert white_polys, "expected the saturation mask to be a white PolyCollection"
+    mask_y = white_polys[0].get_paths()[0].vertices[:, 1]
+    assert mask_y.min() == pytest.approx(expected_saturation_hr, abs=1e-6)
+
+    plt.close(result.fig)
