@@ -4,6 +4,29 @@ Changelog
 Unreleased
 ----------
 
+* **Breaking (plots only):** ``PsychrometricPlot``'s y-axis is now expressed in
+  **g of water per kg of dry air** instead of kg/kg. Typical indoor humidity
+  ratios are 5-20 g/kg, which is far easier to read than 0.005-0.020 kg/kg.
+  Pass ``.set_y_axis("hr", 0.0, 30.0, resolution=1.0)`` where you previously
+  passed ``.set_y_axis("hr", 0.0, 0.030, resolution=0.001)``. A y-axis whose
+  upper bound is below 1 g/kg now emits a ``UserWarning`` explaining the
+  change, so an un-migrated call is flagged rather than silently rendering a
+  blank chart. It warns rather than raises because humidity ratios below
+  1 g/kg are physically real in cold or very dry air (at -20 degC, 0.5 g/kg is
+  roughly 80 % RH), which this package supports
+  (`#338 <https://github.com/pythermalcomfort/pythermalcomfort/issues/338>`_).
+
+  This does **not** change the psychrometric utilities. ``psy_ta_rh(...).hr``
+  still *returns* kg/kg dry air, and ``hr_to_rh()`` and ``enthalpy_air()``
+  still *accept* it, which is the SI convention and matches ASHRAE
+  Fundamentals. So multiply by 1000 when plotting ``psy_ta_rh(...).hr`` on
+  this chart, and divide by 1000 when passing a value read off this chart to
+  ``hr_to_rh()`` or ``enthalpy_air()``.
+* ``PsychrometricPlot`` now labels its own y-axis. Previously it inherited
+  ``ThresholdPlot``'s behaviour of labelling the axis with the raw parameter
+  name, so the axis read ``hr`` unless the caller set a label. Every caller
+  therefore wrote its own and they disagreed with each other about the units.
+  Override with ``result.ax.set_ylabel(...)`` if needed.
 * Fixed ``two_nodes_gagge_sleep`` silently truncating or coercing a non-integer
   ``ltime`` keyword argument (e.g. ``1.5`` became one iteration, ``"1"`` was
   accepted as a string) instead of raising. Non-``int`` values now raise
