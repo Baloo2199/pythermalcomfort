@@ -4,6 +4,9 @@ Changelog
 Unreleased
 ----------
 
+4.5.0 (2026-09-15)
+------------------
+
 * **Breaking (plots only):** ``PsychrometricPlot``'s y-axis is now expressed in
   **g of water per kg of dry air** instead of kg/kg. Typical indoor humidity
   ratios are 5-20 g/kg, which is far easier to read than 0.005-0.020 kg/kg.
@@ -30,7 +33,19 @@ Unreleased
 * Fixed ``two_nodes_gagge_sleep`` silently truncating or coercing a non-integer
   ``ltime`` keyword argument (e.g. ``1.5`` became one iteration, ``"1"`` was
   accepted as a string) instead of raising. Non-``int`` values now raise
-  ``TypeError``.
+  ``TypeError``, and values below 1 now raise ``ValueError`` rather than
+  running zero iterations.
+* Fixed invalid Numba annotations on the vectorised helpers in
+  ``heat_index_lu``, ``heat_index_rothfusz``, ``heat_index_schoen``, and
+  ``utci``. The scalar kernels keep ordinary ``float`` annotations and the
+  ``vectorize`` decorators are now typed to reflect that they accept both
+  scalars and arrays. The explicit Numba signatures are unchanged, so results
+  are unaffected
+  (`#393 <https://github.com/pythermalcomfort/pythermalcomfort/issues/393>`_).
+* Documentation: clarified the ``pmv_ppd_iso`` model parameters, distinguished
+  the ASHRAE and EN acceptability outputs of the adaptive models, and
+  documented the air-speed assumptions behind ``AdaptivePlot`` scatter
+  overlays.
 
 4.4.3 (2026-09-14)
 ------------------
