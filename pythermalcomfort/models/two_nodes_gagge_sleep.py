@@ -82,6 +82,12 @@ def two_nodes_gagge_sleep(
         To access the results, use the corresponding attributes of the returned instance, e.g. `result.e_skin`.
     """
     ltime = kwargs.pop("ltime", 1)
+    if isinstance(ltime, bool) or not isinstance(ltime, (int, np.integer)):
+        error_msg = f"ltime must be an int, got {type(ltime).__name__}: {ltime!r}"
+        raise TypeError(error_msg)
+    if ltime < 1:
+        error_msg = f"ltime must be a positive integer, got {ltime}"
+        raise ValueError(error_msg)
     height = kwargs.pop("height", 171)
     weight = kwargs.pop("weight", 70)
     c_sw = kwargs.pop("c_sw", 170)

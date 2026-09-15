@@ -233,3 +233,23 @@ def test_tickness_quilt_negative() -> None:
     """Test that a negative thickness_quilt raises ValueError."""
     with pytest.raises(ValueError):
         two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, thickness_quilt=-1.76)
+
+
+def test_non_integer_ltime_raises_type_error() -> None:
+    """A non-integral ltime must be rejected rather than silently truncated."""
+    with pytest.raises(TypeError, match="ltime"):
+        two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, 1.76, ltime=1.5)
+
+
+def test_string_ltime_raises_type_error() -> None:
+    """A string ltime must be rejected rather than silently coerced."""
+    with pytest.raises(TypeError, match="ltime"):
+        two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, 1.76, ltime="1")
+
+
+def test_non_positive_ltime_raises_value_error() -> None:
+    """ltime <= 0 must be rejected rather than silently producing zero iterations."""
+    with pytest.raises(ValueError, match="ltime"):
+        two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, 1.76, ltime=0)
+    with pytest.raises(ValueError, match="ltime"):
+        two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, 1.76, ltime=-1)

@@ -25,7 +25,11 @@ reviews:
     auto_assign_reviewers: false
     poem: false
     labeling_instructions: []
-    path_filters: []
+    path_filters:
+        - '!**/*.csv'
+        - '!**/*.epw'
+        - '!**/*.xlsx'
+        - '!examples/**/data/**'
     path_instructions: []
     abort_on_close: true
     disable_cache: false
@@ -35,7 +39,7 @@ reviews:
         ignore_title_keywords: []
         labels: []
         drafts: false
-        base_branches: ['development']
+        base_branches: ['development', 'master']
     finishing_touches:
         docstrings:
             enabled: true

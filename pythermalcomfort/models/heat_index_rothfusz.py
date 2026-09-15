@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import cast
+
 import numpy as np
 from numba import float64, vectorize
+from numpy.typing import NDArray
 
 from pythermalcomfort.classes_input import HIInputs, NumericInput
 from pythermalcomfort.classes_return import HI
@@ -83,13 +87,25 @@ def heat_index_rothfusz(
     return HI(hi=hi_valid, stress_category=mapping(hi_valid, heat_index_categories))
 
 
-@vectorize(
-    [
-        float64(float64, float64),
+@cast(
+    Callable[
+        [Callable[[float, float], float]],
+        Callable[
+            [
+                float | NDArray[np.float64],
+                float | NDArray[np.float64],
+            ],
+            np.float64 | NDArray[np.float64],
+        ],
     ],
-    cache=True,
+    vectorize(
+        [
+            float64(float64, float64),
+        ],
+        cache=True,
+    ),
 )
-def _rothfusz_heat_index_optimized(tdb: float64, rh: float64) -> float64:
+def _rothfusz_heat_index_optimized(tdb: float, rh: float) -> float:
     return (
         -8.784695
         + 1.61139411 * tdb
