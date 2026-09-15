@@ -25,7 +25,7 @@ rule (`review_on_push: false`, `review_draft_pull_requests: false`). That means:
 
   ```bash
   gh api repos/pythermalcomfort/pythermalcomfort/pulls/<n>/reviews \
-    --jq '.[] | select(.user.login=="copilot-pull-request-reviewer[bot]") | {commit: .commit.oid, state}'
+    --jq '.[] | select(.user.login=="copilot-pull-request-reviewer[bot]") | {commit: .commit_id, state}'
   gh pr view <n> --json headRefOid -q .headRefOid   # compare against this
   ```
 

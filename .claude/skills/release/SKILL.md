@@ -159,8 +159,12 @@ If it hasn't posted (e.g. `.coderabbit.yaml` changes, rate limits), fall back to
 running it locally against the diff:
 
 ```bash
-coderabbit review --agent --base development --committed
+coderabbit review --agent --base master --committed
 ```
+
+The base is `master`, not `development`: this PR's diff *is* development
+against master, so basing on `development` would compare the branch with
+itself and review nothing.
 
 Treat its findings the same way as Copilot's. See the `git-task-tracking` skill
 if a finding should become a tracked issue instead of a same-PR fix.
