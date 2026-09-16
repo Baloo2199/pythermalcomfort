@@ -264,14 +264,27 @@ def plot_condition(ax: plt.Axes, condition: TransientCondition) -> None:
     exposure_start, exposure_end = baseline_min, baseline_min + exposure_min
     ax.axvspan(exposure_start, exposure_end, color="0.9", zorder=0)
 
+    exposure_to = condition.operative_temp[2]
+    exposure_rh = condition.relative_humidity[2]
+    before_to, after_to = condition.operative_temp[1], condition.operative_temp[3]
+    ax.text(
+        (exposure_start + exposure_end) / 2,
+        40.4,
+        f"Exposure: $T_o$={exposure_to:g}°C, RH={exposure_rh:g}%\n"
+        f"Before/after: $T_o\\approx${before_to:g}/{after_to:g}°C",
+        ha="center",
+        va="top",
+        fontsize=7.5,
+    )
+
     ax.set_xlim(0, sum(PHASE_MINUTES[1:]))
     ax.set_ylim(28, 41)
     ax.set_xlabel("Time [min]")
-    ax.set_title(condition.label)
     ax.text(
         0.02,
         0.03,
-        f"RMSE: rectal {core_rmse:.2f}°C, skin {skin_rmse:.2f}°C",
+        f"RMSE (full {sum(PHASE_MINUTES[1:])}-min record): rectal {core_rmse:.2f}°C, "
+        f"skin {skin_rmse:.2f}°C",
         transform=ax.transAxes,
         fontsize=8,
         va="bottom",
@@ -284,23 +297,18 @@ def build_figure(conditions: tuple[TransientCondition, ...]) -> plt.Figure:
     for ax, condition in zip(axes, conditions, strict=True):
         plot_condition(ax, condition)
 
-    axes[0].set_ylabel("Body temperature [°C]")
+    axes[0].set_ylabel("Rectal and mean skin temperature [°C]")
     handles, labels = axes[0].get_legend_handles_labels()
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
     fig.legend(
         handles,
         labels,
         loc="upper center",
         ncol=4,
         frameon=False,
-        bbox_to_anchor=(0.5, 1.06),
+        bbox_to_anchor=(0.5, 1.0),
         fontsize=9,
     )
-    fig.suptitle(
-        "JOS-3 transient simulation vs. Stolwijk & Hardy (1966) human-subject data",
-        y=1.14,
-        fontsize=11,
-    )
-    fig.tight_layout()
     return fig
 
 
