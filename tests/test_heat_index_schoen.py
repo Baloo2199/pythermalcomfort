@@ -65,7 +65,44 @@ def test_list_input() -> None:
     assert isinstance(result.hi, np.ndarray)
     assert result.hi.shape == (4,)
     assert is_equal(result.hi, expected)
-    assert is_equal(result.stress_category, _expected_stress_category(expected))
+    assert is_equal(
+        result.stress_category,
+        _expected_stress_category(_expected_heat_index_schoen(tdb, rh)),
+    )
+
+
+@pytest.mark.parametrize(
+    ("tdb", "boundary", "category"),
+    [
+        (26.689952, 27.0, "caution"),
+        (30.436055, 32.0, "extreme caution"),
+        (35.979625, 41.0, "danger"),
+        (41.740423, 54.0, "extreme danger"),
+    ],
+)
+def test_category_uses_unrounded_heat_index(tdb, boundary, category) -> None:
+    """Keep the higher category when display rounding reaches a bin edge."""
+    rounded = heat_index_schoen(tdb, 50)
+    unrounded = heat_index_schoen(tdb, 50, round_output=False)
+
+    assert boundary < unrounded.hi < boundary + 0.05
+    assert rounded.hi == boundary
+    assert rounded.stress_category == unrounded.stress_category == category
+
+
+@pytest.mark.parametrize("round_output", [True, False])
+def test_category_rounding_with_broadcast(round_output) -> None:
+    """Keep categories independent of rounding for broadcast inputs."""
+    result = heat_index_schoen(
+        [26.689952, 30.436055, 35.979625, 41.740423],
+        50,
+        round_output=round_output,
+    )
+
+    np.testing.assert_array_equal(
+        result.stress_category,
+        ["caution", "extreme caution", "danger", "extreme danger"],
+    )
 
 
 @pytest.mark.parametrize(

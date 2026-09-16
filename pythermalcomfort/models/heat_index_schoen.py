@@ -33,6 +33,7 @@ def heat_index_schoen(
         Relative humidity, [%].
     round_output : bool, optional
         If True, rounds output value. If False, it does not round it. Defaults to True.
+        Stress categories are always determined from the unrounded heat index.
 
     Returns
     -------
@@ -67,11 +68,12 @@ def heat_index_schoen(
     hi = _schoen_heat_index_optimized(tdb, t_dew)
 
     heat_index_categories = {27.0: "no risk", **HEAT_INDEX_STRESS_CATEGORIES}
+    stress_category = mapping(hi, heat_index_categories)
 
     if round_output:
         hi = np.around(hi, 1)
 
-    return HI(hi=hi, stress_category=mapping(hi, heat_index_categories))
+    return HI(hi=hi, stress_category=stress_category)
 
 
 @cast(
