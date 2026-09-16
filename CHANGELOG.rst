@@ -4,6 +4,67 @@ Changelog
 Unreleased
 ----------
 
+* **Breaking (plots only):** ``ThresholdPlot`` (and therefore
+  ``PsychrometricPlot``) now finds region boundaries by root-finding instead of
+  contouring a raster grid. For every row of the plot it bisects to the exact
+  place where the output crosses a threshold, and where the model leaves its
+  applicability limits, then fills between the resulting curves. Region edges
+  and the out-of-model-limits area follow smooth curves rather than grid steps,
+  and the chart no longer changes when you change ``resolution``. Charts where
+  several limits clip each other -- ``pmv_ppd_iso``, whose PMV, dry-bulb and
+  vapour-pressure limits used to leave a staircase of grey squares -- benefit
+  most.
+
+  A threshold may be crossed more than once along a row, and each crossing gets
+  its own curve. ``ppd`` is the usual case: it falls to a minimum at neutrality
+  and rises again, so "PPD below 10" is a strip with "above 10" on both sides.
+  Such a chart used to be drawn on the raster path and came out jagged; it is
+  now solved like any other.
+
+  The boundaries come back as coordinate arrays in ``result.boundaries``, one
+  ``BoundaryCurve`` per threshold per branch, with ``.threshold``, ``.branch``,
+  ``.x`` and ``.y``, so they can be re-used, exported or re-styled directly.
+
+  **The contour backend is gone**, along with ``plot()``'s ``backend`` argument
+  and ``result.backend``. Geometry that cannot be laid out the same way in
+  every row -- an internal hole in the model's valid area, or a pair of
+  crossings that only appears partway up the chart -- now raises ``ValueError``
+  rather than silently falling back to a grid-stepped rendering. Narrowing the
+  axis ranges to where the model is well behaved is usually the fix;
+  ``utci()``, for instance, needs ``tdb`` capped near 42 degC before its
+  polynomial stops diverging (see #410).
+
+  ``result.fills`` is consequently a list of one ``fill_between`` polygon per
+  band rather than a single ``ContourSet``, and ``fill_kws`` reaches
+  ``ax.fill_between`` rather than ``ax.contourf``. Code testing
+  ``isinstance(artist, QuadContourSet)`` no longer matches.
+
+* ``resolution`` is now optional on ``set_x_axis`` and ``set_y_axis``. It never
+  set the precision of a boundary -- bisection does -- so it only matters for a
+  model that turns sharply enough to step over a feature between samples. Both
+  axes have sampling floors, so omitting it gives a chart that is already
+  smooth.
+
+* Threshold boundary lines are now hidden by default (``show_lines=True``
+  brings them back): the region fills meet exactly on the boundary, so the
+  colour change already marks it and the extra line mostly added weight. The
+  out-of-model-limits shading is lighter, ``#ececec`` instead of ``#bdbdbd``.
+  The grid and the top and right spines are now set on the axis rather than
+  through ``rc_context``, which fixes charts drawn on a caller-supplied ``ax``
+  keeping whatever frame and grid the caller's ``rcParams`` gave them --
+  multi-panel figures were previously styled inconsistently. Call
+  ``result.ax.grid(True)`` to put the grid back.
+
+* A chart title now sits above however many rows its legend needs, instead of
+  at a fixed height: a five-region chart wrapped its legend onto two rows and
+  the title landed in the middle of it. The fixed height was marginally too low
+  even for a one-row legend, so titles were always very slightly clipped.
+
+* ``PsychrometricPlot`` writes each constant-RH label on its curve, rotated to
+  follow it and set in a gap left in the curve, rather than parking it at the
+  curve's end. The curves fan out, and a label beside the bundle is easy to
+  read against the wrong line.
+
 4.5.0 (2026-09-15)
 ------------------
 

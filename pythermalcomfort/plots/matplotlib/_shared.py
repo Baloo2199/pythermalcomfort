@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from numbers import Number
@@ -24,7 +25,7 @@ class _AxisConfig:
     name: str
     min_val: float
     max_val: float
-    resolution: float
+    resolution: float | None
 
 
 def _parse_axis_range(min_val: Any, max_val: Any) -> tuple[float, float]:
@@ -75,7 +76,7 @@ class _PlotDefaults:
     """
 
     # ── shared across all plot types ───────────────────────────────────────
-    color_out_of_model: str = "#bdbdbd"
+    color_out_of_model: str = "#ececec"
     parameter_links: MappingProxyType = MappingProxyType({"tr": "tdb", "tdb": "tr"})
     figsize: tuple = (7, 4)
     fill_alpha: float = 1.0
@@ -84,11 +85,34 @@ class _PlotDefaults:
     # and the title floats above the legend.
     legend_bbox_to_anchor_with_title: tuple = (0.5, 1.05)
     title_y_with_legend: float = 1.15
+    #: Height of one legend row in axes coordinates.  A title sitting above a
+    #: legend has to clear every row, so the offset is per-row rather than
+    #: fixed: a five-region chart wraps its legend onto two rows and the old
+    #: fixed offset put the title straight through it.  Measured rather than
+    #: guessed -- 0.10 left the title overlapping the legend by 0.015 even at
+    #: one row, so titles were always very slightly clipped.  Deliberately a
+    #: fixed model rather than measuring the drawn legend: callers who apply
+    #: ``constrained_layout`` or ``tight_layout`` afterwards move everything,
+    #: which would leave a measured position stale.  0.12 is the smallest
+    #: value that clears the legend at both one and two rows with a little
+    #: margin; 0.115 just clears it, and 0.10 overlapped even at one row.
+    title_legend_row_height: float = 0.12
 
     class Threshold:
         """Defaults specific to :class:`ThresholdPlot`."""
 
         fill_corner_mask: bool = False
+        # Rows and scan samples used when solving boundaries.  The scan samples
+        # only have to separate one crossing from the next -- bisection
+        # supplies the precision -- while the rows set how finely the boundary
+        # curves themselves are sampled.
+        curve_min_rows: int = 200
+        # Doubled from 65: the scan spacing sets the smallest feature the
+        # solver can see, so a finer floor halves the width of an invalid
+        # pocket or a close pair of crossings that could slip between samples.
+        # Costs ~20% on pmv_ppd_iso and ~50% on set_tmp, both still well under
+        # a third of a second.
+        curve_min_scan_samples: int = 129
         line_color: str = "black"
         line_linewidth: float = 1.0
         legend_loc: str = "lower center"
@@ -120,7 +144,16 @@ class _PlotDefaults:
         rh_line_color: str = "#a0a0a0"
         rh_line_linewidth: float = 0.8
         rh_label_fontsize: int = 8
+        #: Labels are darker than their curves: the line can be faint because
+        #: it is background, but the text has to be read.
+        rh_label_color: str = "#6b6b6b"
+        #: Half-width, in curve samples, of the gap left for the label.
+        rh_label_gap: int = 11
         rh_label_offset_fraction: float = 0.01
+        #: Where along each visible RH curve its label sits, as a fraction of
+        #: the curve's in-range span.  Just short of the end keeps the label
+        #: inside the axes while staying out of the busy lower-left corner.
+        rh_label_position: float = 0.93
         rh_curve_step: int = 10
         zorder_rh_mask: float = 1.6
         zorder_rh_lines: float = 2.0
@@ -169,6 +202,54 @@ _PYTHERMALCOMFORT_RC: dict[str, Any] = {
     "grid.linewidth": 0.5,
     "grid.alpha": 0.7,
 }
+
+
+def _title_y_above_legend(*, n_handles: int, ncol: int, anchor_y: float) -> float:
+    """Return a title ``y`` that clears a legend of ``n_handles`` entries.
+
+    The legend grows upward from ``anchor_y``, one row at a time, so a title
+    pinned at a fixed height runs through it as soon as the entries wrap onto
+    a second row.
+
+    Parameters
+    ----------
+    n_handles : int
+        Number of legend entries.
+    ncol : int
+        Number of legend columns.
+    anchor_y : float
+        The legend's ``bbox_to_anchor`` y, in axes coordinates.
+
+    Returns
+    -------
+    float
+        Title ``y`` in axes coordinates.
+    """
+    rows = max(1, math.ceil(n_handles / max(1, ncol)))
+    return anchor_y + rows * _PlotDefaults.title_legend_row_height
+
+
+def _apply_axes_style(ax: Axes) -> None:
+    """Apply the package's axes styling to *ax* directly.
+
+    ``_PYTHERMALCOMFORT_RC`` is an ``rc_context``, so its settings only reach
+    axes that are *created* inside it.  An axes the caller made earlier keeps
+    its own frame and grid, which leaves a multi-panel figure styled
+    inconsistently -- panels drawn on caller-supplied axes get a full box,
+    panels drawn on axes the plot created do not.  Setting the same properties
+    on the axes closes that gap.
+
+    Callers who want the grid back can call ``result.ax.grid(True)``.
+
+    Parameters
+    ----------
+    ax : Axes
+        Axis to style in place.
+    """
+    ax.grid(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
 
 # ── internal resolved container ────────────────────────────────────────────
 

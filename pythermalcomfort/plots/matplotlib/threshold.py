@@ -1,9 +1,9 @@
-"""Class-based threshold plotting with a contour backend."""
+"""Class-based threshold plotting, with boundaries solved by root-finding."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 import matplotlib as mpl
@@ -11,17 +11,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.collections import PolyCollection
-from matplotlib.colors import ListedColormap, is_color_like
+from matplotlib.colors import is_color_like
 from matplotlib.legend import Legend
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 from pythermalcomfort.plots.matplotlib._base import GridBasePlot
+from pythermalcomfort.plots.matplotlib._boundaries import (
+    BoundaryCurve,
+    RegionBands,
+    solve_region_bands,
+)
 from pythermalcomfort.plots.matplotlib._shared import (
     _PYTHERMALCOMFORT_RC,
     BasePlotResult,
+    _apply_axes_style,
+    _AxisConfig,
     _configure_regions,
     _PlotDefaults,
+    _title_y_above_legend,
 )
 
 #: Default color for grid cells that fall outside the model's applicability limits.
@@ -39,46 +47,22 @@ class ThresholdPlotResult(BasePlotResult):
     ax : Axes
         Matplotlib axis containing the rendered threshold plot.
     lines : list of Line2D
-        Contour boundary lines as editable artists.
+        Threshold boundary lines as editable artists.
     fills : list of PolyCollection
         Filled threshold regions as artists.
     legend : Legend or None
         Legend artist if ``legend=True``, otherwise ``None``.
+    boundaries : list of BoundaryCurve
+        Threshold boundaries as ``(x, y)`` coordinate arrays, ordered by
+        threshold then branch.  A threshold crossed twice per row -- as
+        ``ppd`` is, falling to a minimum at neutrality and rising again --
+        contributes two curves, distinguished by their ``branch``.
     """
 
     lines: list[Line2D]
     fills: list[PolyCollection]
     legend: Legend | None
-
-
-def _contour_paths_to_lines(
-    ax: Axes,
-    *,
-    contour_set: Any,
-    line_opts: Mapping[str, Any],
-) -> list[Line2D]:
-    """Convert contour paths into editable line artists."""
-    lines: list[Line2D] = []
-
-    for path in contour_set.get_paths():
-        segments = path.to_polygons(closed_only=False)
-        x_combined: list[float] = []
-        y_combined: list[float] = []
-
-        for segment in segments:
-            if len(segment) == 0:
-                continue
-            x_combined.extend(segment[:, 0].tolist())
-            x_combined.append(np.nan)
-            y_combined.extend(segment[:, 1].tolist())
-            y_combined.append(np.nan)
-
-        if x_combined:
-            (line,) = ax.plot(x_combined, y_combined, **line_opts)
-            lines.append(line)
-
-    contour_set.remove()
-    return lines
+    boundaries: list[BoundaryCurve] = field(default_factory=list)
 
 
 class ThresholdPlot(GridBasePlot):
@@ -93,6 +77,10 @@ class ThresholdPlot(GridBasePlot):
 
     The returned result contains editable Matplotlib artists, so users can apply
     additional styling with standard Matplotlib code.
+
+    Boundaries are solved by root-finding rather than traced off a raster
+    grid, so they follow smooth curves and do not move when ``resolution``
+    changes.  See the Notes on :meth:`plot`.
 
     Examples
     --------
@@ -110,6 +98,10 @@ class ThresholdPlot(GridBasePlot):
             .plot(title="PMV Threshold Regions")
         )
         result.ax.set_xlabel("Air temperature [°C]")
+
+        # The boundaries are available as plain coordinate arrays.
+        lower = result.boundaries[0]
+        print(lower.threshold, lower.x[:3], lower.y[:3])
     """
 
     def set_regions(
@@ -157,19 +149,158 @@ class ThresholdPlot(GridBasePlot):
         if not isinstance(invalid_color, str) or not is_color_like(invalid_color):
             raise ValueError("invalid_color must be a valid Matplotlib color string.")
 
+    # ── boundary solving ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _axis_samples(axis: _AxisConfig, *, minimum: int) -> np.ndarray:
+        """Sample one axis, honoring its resolution but never going coarser than
+        ``minimum`` points."""
+        steps = (
+            minimum
+            if axis.resolution is None
+            else int(np.ceil((axis.max_val - axis.min_val) / axis.resolution)) + 1
+        )
+        return np.linspace(axis.min_val, axis.max_val, max(steps, minimum))
+
+    def _solve_bands(
+        self, output_name: str, thresholds: list[float]
+    ) -> RegionBands | None:
+        """Solve region boundaries by root-finding, scanning x then y.
+
+        The output usually varies monotonically along one axis and not the
+        other — PMV against dry-bulb temperature, say — so a scan that fails
+        one way round often succeeds the other.
+
+        Returns
+        -------
+        RegionBands or None
+            ``None`` when neither scan direction yields one band per region
+            per row.  Errors raised while evaluating the model propagate
+            untouched: they mean the plot is misconfigured, not that the
+            geometry is awkward.
+        """
+        for scan_axis in ("x", "y"):
+            scan_config, row_config = (
+                (self._x_axis, self._y_axis)
+                if scan_axis == "x"
+                else (self._y_axis, self._x_axis)
+            )
+            scan = self._axis_samples(
+                scan_config, minimum=_PlotDefaults.Threshold.curve_min_scan_samples
+            )
+            rows = self._axis_samples(
+                row_config, minimum=_PlotDefaults.Threshold.curve_min_rows
+            )
+
+            def evaluate(
+                scan_values: np.ndarray,
+                row_values: np.ndarray,
+                _axis: str = scan_axis,
+            ) -> np.ndarray:
+                x, y = (
+                    (scan_values, row_values)
+                    if _axis == "x"
+                    else (row_values, scan_values)
+                )
+                return self._evaluate_grid_output(
+                    x=np.asarray(x, dtype=float),
+                    y=np.asarray(y, dtype=float),
+                    output_name=output_name,
+                )
+
+            bands = solve_region_bands(
+                evaluate=evaluate,
+                scan=scan,
+                rows=rows,
+                thresholds=thresholds,
+                scan_axis=scan_axis,
+            )
+            if bands is not None:
+                return bands
+
+        return None
+
+    def _draw_bands(
+        self,
+        ax: Axes,
+        *,
+        bands: RegionBands,
+        colors: Sequence[str],
+        fill_opts: Mapping[str, Any],
+        line_opts: Mapping[str, Any],
+        show_lines: bool,
+        invalid_color: str,
+    ) -> tuple[list[PolyCollection], list[Line2D]]:
+        """Fill the solved bands and draw their boundary curves."""
+        scan_config = self._x_axis if bands.scan_axis == "x" else self._y_axis
+        scan_min, scan_max = scan_config.min_val, scan_config.max_val
+        # fill_betweenx spans along x for each y; fill_between the other way.
+        fill = ax.fill_betweenx if bands.scan_axis == "x" else ax.fill_between
+
+        # One polygon per band rather than per region: a region split in two
+        # by a non-monotone output -- "PPD above 10" sits on both sides of the
+        # comfort dip -- needs a polygon on each side.
+        fills = [
+            cast(
+                PolyCollection,
+                fill(
+                    bands.rows,
+                    bands.edges[band],
+                    bands.edges[band + 1],
+                    color=colors[region],
+                    **fill_opts,
+                ),
+            )
+            for band, region in enumerate(bands.band_regions)
+            if 0 <= region < len(colors)
+        ]
+
+        if bands.has_invalid:
+            # The two out-of-limits bands are the complement of the valid
+            # interval. They are drawn above the region fills so that the
+            # wedge a region sweeps out on its way to a fully-invalid row is
+            # covered rather than left showing.
+            edge = np.full_like(bands.rows, scan_min)
+            fills.extend(
+                cast(
+                    PolyCollection,
+                    fill(
+                        bands.rows,
+                        low,
+                        high,
+                        color=invalid_color,
+                        zorder=_PlotDefaults.Threshold.zorder_invalid,
+                    ),
+                )
+                for low, high in (
+                    (edge, bands.valid_start),
+                    (bands.valid_end, np.full_like(bands.rows, scan_max)),
+                )
+            )
+
+        lines: list[Line2D] = []
+        if show_lines:
+            for curve in bands.curves:
+                (line,) = ax.plot(curve.x, curve.y, **line_opts)
+                lines.append(line)
+
+        return fills, lines
+
+    # ── rendering ──────────────────────────────────────────────────────────
+
     def plot(
         self,
         *,
         ax: Axes | None = None,
         title: str | None = None,
         legend: bool = True,
-        show_lines: bool = True,
+        show_lines: bool = False,
         line_kws: Mapping[str, Any] | None = None,
         fill_kws: Mapping[str, Any] | None = None,
         legend_kws: Mapping[str, Any] | None = None,
         invalid_color: str = _PlotDefaults.color_out_of_model,
     ) -> ThresholdPlotResult:
-        """Render threshold regions and contours on a Matplotlib axis.
+        """Render threshold regions and their boundaries on a Matplotlib axis.
 
         Parameters
         ----------
@@ -181,17 +312,20 @@ class ThresholdPlot(GridBasePlot):
         legend : bool
             Whether to draw a legend.
         show_lines : bool
-            Whether to draw threshold contour boundaries.
+            Whether to draw a line along each threshold boundary.  Defaults to
+            ``False``: the region fills meet exactly on the boundary, so the
+            colour change already marks it, and an extra line mostly adds
+            visual weight -- noticeably so on charts with several bands.  Pass
+            ``True`` to draw them.
         line_kws : dict, optional
-            Keyword overrides forwarded to ``ax.plot`` for contour lines.
+            Keyword overrides forwarded to ``ax.plot`` for boundary lines.
         fill_kws : dict, optional
-            Keyword overrides forwarded to ``ax.contourf`` for region fills.
-            Keys ``color`` and ``facecolor`` are reserved and rejected.
+            Keyword overrides forwarded to ``ax.fill_between`` for the region
+            fills.  Keys ``color`` and ``facecolor`` are reserved and rejected.
         legend_kws : dict, optional
             Keyword overrides forwarded to ``ax.legend``.
         invalid_color : str
-            Color used for out-of-model/invalid grid areas.
-
+            Color used for areas outside the model's applicability limits.
         Returns
         -------
         ThresholdPlotResult
@@ -201,7 +335,15 @@ class ThresholdPlot(GridBasePlot):
         ------
         ValueError
             If required configuration is missing, plotting inputs are invalid,
-            or model evaluation/output extraction fails.
+            model evaluation fails, or the region layout cannot be solved.
+
+        Notes
+        -----
+        Boundaries are found by bisection, so ``resolution`` does not set their
+        precision.  On the scanned axis it only has to be fine enough to
+        separate one threshold crossing from the next; on the other axis it
+        sets how finely the boundary curves are sampled.  Both have floors, so
+        omitting ``resolution`` gives a chart that is already smooth.
         """
         with mpl.rc_context(_PYTHERMALCOMFORT_RC):
             self._validate_plot_inputs(fill_kws=fill_kws)
@@ -212,11 +354,6 @@ class ThresholdPlot(GridBasePlot):
             line_opts = dict(line_kws or {})
             line_opts.setdefault("color", _PlotDefaults.Threshold.line_color)
             line_opts.setdefault("linewidth", _PlotDefaults.Threshold.line_linewidth)
-
-            fill_opts = dict(fill_kws or {})
-            fill_opts.setdefault(
-                "corner_mask", _PlotDefaults.Threshold.fill_corner_mask
-            )
 
             legend_opts = dict(legend_kws or {})
             legend_opts.setdefault("loc", _PlotDefaults.Threshold.legend_loc)
@@ -231,66 +368,35 @@ class ThresholdPlot(GridBasePlot):
                 fig, ax = plt.subplots(figsize=_PlotDefaults.figsize)
             else:
                 fig = ax.figure
+            _apply_axes_style(ax)
 
-            x_min, x_max, y_min, y_max, x, y = self._build_grid()
-            z = self._evaluate_grid_output(x=x, y=y, output_name=rc.output_name)
+            fill_opts = dict(fill_kws or {})
 
-            finite = np.isfinite(z)
-            invalid = ~finite
-            z_masked = np.ma.masked_invalid(z)
+            bands = self._solve_bands(rc.output_name, rc.thresholds)
+            if bands is None:
+                msg = (
+                    "Could not lay out the threshold regions: every row of the "
+                    "chart has to cut the same way, so the valid area must be "
+                    "contiguous along one axis and each threshold crossed the "
+                    "same number of times in every row. Narrowing the axis "
+                    "ranges to where the model is well behaved usually fixes "
+                    "it -- utci(), for instance, needs tdb capped near 42 degC "
+                    "before its polynomial stops diverging."
+                )
+                raise ValueError(msg)
 
-            extended_levels = [-np.inf, *rc.thresholds, np.inf]
-            fills: list[PolyCollection] = []
-            if finite.any():
-                filled_contours = ax.contourf(
-                    x,
-                    y,
-                    z_masked,
-                    levels=extended_levels,
-                    colors=rc.colors,
-                    extend="neither",
-                    **fill_opts,
-                )
-
-                if hasattr(filled_contours, "collections"):
-                    fills.extend(
-                        cast(list[PolyCollection], list(filled_contours.collections))
-                    )
-                else:
-                    fills.append(cast(PolyCollection, filled_contours))
-
-            if invalid.any():
-                invalid_cells = (
-                    invalid[:-1, :-1]
-                    | invalid[1:, :-1]
-                    | invalid[:-1, 1:]
-                    | invalid[1:, 1:]
-                )
-                invalid_mask = np.ma.masked_where(
-                    ~invalid_cells,
-                    np.ones_like(invalid_cells, dtype=float),
-                )
-                ax.pcolormesh(
-                    x,
-                    y,
-                    invalid_mask,
-                    cmap=ListedColormap([invalid_color]),
-                    shading="flat",
-                    zorder=_PlotDefaults.Threshold.zorder_invalid,
-                )
-
-            lines: list[Line2D] = []
-            if show_lines and finite.any():
-                contour_lines = ax.contour(
-                    x, y, z_masked, levels=rc.thresholds, antialiased=True
-                )
-                lines = _contour_paths_to_lines(
-                    ax,
-                    contour_set=contour_lines,
-                    line_opts=line_opts,
-                )
+            fills, lines = self._draw_bands(
+                ax,
+                bands=bands,
+                colors=rc.colors,
+                fill_opts=fill_opts,
+                line_opts=line_opts,
+                show_lines=show_lines,
+                invalid_color=invalid_color,
+            )
 
             legend_artist: Legend | None = None
+            title_y: float | None = None
             if legend:
                 handles = [
                     Patch(
@@ -300,7 +406,7 @@ class ThresholdPlot(GridBasePlot):
                     )
                     for label, color in zip(rc.labels, rc.colors, strict=False)
                 ]
-                if invalid.any():
+                if bands.has_invalid:
                     handles.append(
                         Patch(
                             facecolor=invalid_color,
@@ -315,15 +421,18 @@ class ThresholdPlot(GridBasePlot):
                     handles=handles,
                     **legend_opts,
                 )
+                title_y = _title_y_above_legend(
+                    n_handles=len(handles),
+                    ncol=int(legend_opts["ncol"]),
+                    anchor_y=float(legend_opts["bbox_to_anchor"][1]),
+                )
 
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
+            ax.set_xlim(self._x_axis.min_val, self._x_axis.max_val)
+            ax.set_ylim(self._y_axis.min_val, self._y_axis.max_val)
             ax.set_xlabel(self._x_axis.name)
             ax.set_ylabel(self._y_axis.name)
             if title is not None:
-                ax.set_title(
-                    title, y=_PlotDefaults.title_y_with_legend if legend else None
-                )
+                ax.set_title(title, y=title_y)
 
             return ThresholdPlotResult(
                 fig=fig,
@@ -331,4 +440,5 @@ class ThresholdPlot(GridBasePlot):
                 lines=lines,
                 fills=fills,
                 legend=legend_artist,
+                boundaries=bands.curves,
             )

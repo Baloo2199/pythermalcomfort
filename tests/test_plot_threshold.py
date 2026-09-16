@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
 
 import matplotlib
@@ -247,34 +248,6 @@ def test_plot_all_valid_regions_do_not_add_invalid_legend_entry() -> None:
     assert "Out of model limits" not in legend_labels
 
 
-def test_plot_internal_invalid_holes_preserve_requested_limits() -> None:
-    plot = (
-        ThresholdPlot(internal_hole_model)
-        .set_x_axis("tdb", 20.0, 30.0, resolution=1.0)
-        .set_y_axis("rh", 20.0, 80.0, resolution=10.0)
-        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
-    )
-
-    result = plot.plot(legend=False, show_lines=False)
-
-    assert_axis_limits(result, xlim=(20.0, 30.0), ylim=(20.0, 80.0))
-
-
-def test_plot_all_invalid_surface_renders_and_preserves_requested_limits() -> None:
-    plot = (
-        ThresholdPlot(all_invalid_model)
-        .set_x_axis("tdb", 20.0, 30.0, resolution=1.0)
-        .set_y_axis("rh", 20.0, 80.0, resolution=10.0)
-        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
-    )
-
-    result = plot.plot()
-
-    assert isinstance(result, ThresholdPlotResult)
-    assert_axis_limits(result, xlim=(20.0, 30.0), ylim=(20.0, 80.0))
-    assert result.legend is not None
-
-
 def test_plot_supports_default_link_tr_from_tdb() -> None:
     result = (
         ThresholdPlot(linked_input_model)
@@ -454,3 +427,270 @@ def test_plot_grid_includes_exact_endpoints() -> None:
     )
     assert result.ax.get_xlim() == pytest.approx((20.0, 30.0))
     assert result.ax.get_ylim() == pytest.approx((20.0, 75.0))
+
+
+# ── curve backend ──────────────────────────────────────────────────────────
+
+
+def x_decreasing_model(tdb, rh):
+    """Output falls along x, so regions run right-to-left."""
+    tdb_arr = np.asarray(tdb, dtype=float)
+    rh_arr = np.asarray(rh, dtype=float)
+    return SimpleNamespace(pmv=(25.0 - tdb_arr) / 10.0 - (rh_arr - 50.0) / 100.0)
+
+
+def x_non_monotone_model(tdb, rh):
+    """Cross each threshold twice along x, but only once along rh, so this one
+    is solvable in the y direction alone."""
+    tdb_arr = np.asarray(tdb, dtype=float)
+    rh_arr = np.asarray(rh, dtype=float)
+    return SimpleNamespace(
+        pmv=((tdb_arr - 25.0) ** 2) / 50.0 + (rh_arr - 50.0) / 40.0,
+    )
+
+
+def analytic_boundary_tdb(threshold: float, rh: np.ndarray) -> np.ndarray:
+    """Exact tdb where ``vectorized_attribute_model`` reaches ``threshold``."""
+    return 25.0 + 10.0 * threshold + (rh - 50.0) / 10.0
+
+
+def _curve_plot(resolution: float = 1.0) -> ThresholdPlot:
+    return (
+        ThresholdPlot(vectorized_attribute_model)
+        .set_x_axis("tdb", 20.0, 30.0, resolution=resolution)
+        .set_y_axis("rh", 20.0, 80.0, resolution=resolution * 6.0)
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+
+
+def test_curve_boundaries_match_the_analytic_solution() -> None:
+    result = _curve_plot().plot()
+
+    for curve in result.boundaries:
+        drawn = np.isfinite(curve.x)
+        assert drawn.any()
+        expected = analytic_boundary_tdb(curve.threshold, curve.y[drawn])
+        assert curve.x[drawn] == pytest.approx(expected, abs=1e-5)
+
+
+def test_curve_boundaries_are_nan_where_the_threshold_is_not_crossed() -> None:
+    # pmv = -0.5 needs tdb = 20 + (rh - 50) / 10, which only enters the plotted
+    # tdb range once rh passes 50.
+    lower = _curve_plot().plot().boundaries[0]
+
+    assert np.all(np.isnan(lower.x[lower.y < 50.0]))
+    assert np.all(np.isfinite(lower.x[lower.y > 51.0]))
+
+
+def test_curve_boundaries_do_not_depend_on_grid_resolution() -> None:
+    coarse = _curve_plot(resolution=2.5).plot().boundaries[1]
+    fine = _curve_plot(resolution=0.05).plot().boundaries[1]
+
+    coarse_x = np.interp(fine.y, coarse.y, coarse.x)
+    both_drawn = np.isfinite(coarse_x) & np.isfinite(fine.x)
+    assert both_drawn.sum() > 10
+    assert coarse_x[both_drawn] == pytest.approx(fine.x[both_drawn], abs=1e-4)
+
+
+def test_curve_backend_tracks_the_validity_edge_exactly() -> None:
+    # outer_margin_invalid_model is valid only on tdb 22-28, rh 30-70.
+    plot = (
+        ThresholdPlot(outer_margin_invalid_model)
+        .set_x_axis("tdb", 20.0, 30.0, resolution=1.0)
+        .set_y_axis("rh", 20.0, 80.0, resolution=10.0)
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+    bands = plot._solve_bands("pmv", [-0.5, 0.5])
+
+    assert bands is not None
+    inside = (bands.rows > 30.0) & (bands.rows < 70.0)
+    assert bands.has_valid[inside].all()
+    assert bands.valid_start[inside] == pytest.approx(22.0, abs=1e-4)
+    assert bands.valid_end[inside] == pytest.approx(28.0, abs=1e-4)
+    # Rows outside the valid rh band have no valid point at all.
+    assert not bands.has_valid[bands.rows < 29.0].any()
+    assert not bands.has_valid[bands.rows > 71.0].any()
+    assert bands.has_invalid
+
+
+def test_model_errors_are_raised_not_turned_into_a_backend_fallback() -> None:
+    plot = (
+        ThresholdPlot(required_input_model)
+        .set_x_axis("tdb", 20.0, 30.0, resolution=1.0)
+        .set_y_axis("rh", 20.0, 80.0, resolution=10.0)
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        with pytest.raises(ValueError, match="Missing required parameter"):
+            plot.plot()
+
+
+def test_curve_backend_omits_invalid_legend_entry_when_everything_is_valid() -> None:
+    result = _curve_plot().plot()
+
+    legend_labels = [text.get_text() for text in result.legend.get_texts()]
+    assert "Out of model limits" not in legend_labels
+    assert len(result.fills) == 3
+
+
+def test_plot_styles_an_axis_the_caller_supplied() -> None:
+    # _PYTHERMALCOMFORT_RC only reaches axes created inside its rc_context, so
+    # the styling has to be applied to the axis itself for a caller-supplied
+    # one to match.
+    with plt.rc_context(matplotlib.rcParamsDefault):
+        _, ax = plt.subplots()
+        assert ax.spines["top"].get_visible()
+
+        result = _curve_plot().plot(ax=ax)
+
+    assert not result.ax.spines["top"].get_visible()
+    assert not result.ax.spines["right"].get_visible()
+    assert not result.ax.xaxis.get_gridlines()[0].get_visible()
+
+
+def test_plot_turns_off_a_grid_the_callers_rcparams_switched_on() -> None:
+    with plt.rc_context({"axes.grid": True}):
+        result = _curve_plot().plot()
+
+    assert not result.ax.xaxis.get_gridlines()[0].get_visible()
+
+
+def test_out_of_model_limits_colour_is_the_light_grey() -> None:
+    assert OUT_OF_MODEL_LIMITS_COLOR == "#ececec"
+
+
+def test_title_clears_a_legend_that_wraps_onto_two_rows() -> None:
+    # Four regions with legend_ncol_max = 4 fit on one row; five wrap onto two,
+    # and the title has to move up to clear the extra row.
+    def make(n_thresholds: int) -> ThresholdPlot:
+        return (
+            ThresholdPlot(vectorized_attribute_model)
+            .set_x_axis("tdb", 20.0, 30.0, resolution=1.0)
+            .set_y_axis("rh", 20.0, 80.0, resolution=10.0)
+            .set_regions(
+                output="pmv",
+                thresholds=[-0.5 + 0.2 * i for i in range(n_thresholds)],
+            )
+        )
+
+    one_row = make(1).plot(title="t")
+    two_rows = make(4).plot(title="t")
+
+    assert two_rows.ax.title.get_position()[1] > one_row.ax.title.get_position()[1]
+
+
+def test_title_without_a_legend_keeps_the_default_position() -> None:
+    result = _curve_plot().plot(title="t", legend=False)
+
+    assert result.ax.title.get_position()[1] == pytest.approx(1.0)
+
+
+def test_plot_exposes_one_boundary_curve_per_threshold() -> None:
+    result = _curve_plot().plot()
+
+    assert [(c.threshold, c.branch) for c in result.boundaries] == [(-0.5, 0), (0.5, 0)]
+    assert result.lines == []
+
+    with_lines = _curve_plot().plot(show_lines=True)
+    assert len(with_lines.lines) == 2
+    assert all(isinstance(line, Line2D) for line in with_lines.lines)
+
+
+def test_plot_hides_boundary_lines_by_default() -> None:
+    assert _curve_plot().plot().lines == []
+
+
+def u_shaped_model(tdb, rh):
+    """Dip to a minimum and rise again, so each threshold is crossed twice."""
+    tdb_arr = np.asarray(tdb, dtype=float)
+    rh_arr = np.asarray(rh, dtype=float)
+    return SimpleNamespace(pmv=((tdb_arr - 25.0) ** 2) / 10.0 + (rh_arr - 50.0) / 200.0)
+
+
+def _u_shaped_plot() -> ThresholdPlot:
+    return (
+        ThresholdPlot(u_shaped_model)
+        .set_x_axis("tdb", 20.0, 30.0)
+        .set_y_axis("rh", 20.0, 80.0)
+        .set_regions(output="pmv", thresholds=[0.5, 1.5])
+    )
+
+
+def test_a_threshold_crossed_twice_gives_two_branches_and_five_bands() -> None:
+    bands = _u_shaped_plot()._solve_bands("pmv", [0.5, 1.5])
+
+    assert bands is not None
+    # High outside, low in the middle: the outer regions each appear twice.
+    assert bands.band_regions == [2, 1, 0, 1, 2]
+    assert [(c.threshold, c.branch) for c in bands.curves] == [
+        (0.5, 0),
+        (0.5, 1),
+        (1.5, 0),
+        (1.5, 1),
+    ]
+
+
+def test_both_branches_of_a_doubled_threshold_are_exact() -> None:
+    result = _u_shaped_plot().plot()
+
+    for curve in result.boundaries:
+        drawn = np.isfinite(curve.x)
+        assert drawn.any()
+        # (tdb - 25)^2 / 10 + (rh - 50) / 200 == threshold
+        offset = np.sqrt(10.0 * (curve.threshold - (curve.y[drawn] - 50.0) / 200.0))
+        expected = 25.0 + (offset if curve.branch == 1 else -offset)
+        assert curve.x[drawn] == pytest.approx(expected, abs=1e-5)
+
+
+def test_bands_of_a_doubled_threshold_are_symmetric_about_the_minimum() -> None:
+    bands = _u_shaped_plot()._solve_bands("pmv", [0.5, 1.5])
+
+    assert bands is not None
+    # The model is symmetric about tdb = 25, so the band edges must be too.
+    left, right = bands.edges[1], bands.edges[-2]
+    assert (left + right) / 2 == pytest.approx(25.0, abs=1e-5)
+
+
+def test_an_internal_hole_cannot_be_laid_out_and_raises() -> None:
+    plot = (
+        ThresholdPlot(internal_hole_model)
+        .set_x_axis("tdb", 20.0, 30.0)
+        .set_y_axis("rh", 20.0, 80.0)
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+
+    with pytest.raises(ValueError, match="Could not lay out the threshold regions"):
+        plot.plot()
+
+
+def test_an_entirely_invalid_surface_raises() -> None:
+    plot = (
+        ThresholdPlot(all_invalid_model)
+        .set_x_axis("tdb", 20.0, 30.0)
+        .set_y_axis("rh", 20.0, 80.0)
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+
+    with pytest.raises(ValueError, match="Could not lay out the threshold regions"):
+        plot.plot()
+
+
+def test_resolution_is_optional_and_changes_nothing_visible() -> None:
+    def build(resolution: float | None) -> ThresholdPlot:
+        return (
+            ThresholdPlot(vectorized_attribute_model)
+            .set_x_axis("tdb", 20.0, 30.0, resolution=resolution)
+            .set_y_axis("rh", 20.0, 80.0, resolution=resolution)
+            .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+        )
+
+    omitted = build(None).plot().boundaries[1]
+    given = build(0.05).plot().boundaries[1]
+
+    # A finer resolution samples more rows, so compare on the common grid.
+    resampled = np.interp(given.y, omitted.y, omitted.x)
+    both = np.isfinite(resampled) & np.isfinite(given.x)
+    assert both.sum() > 10
+    assert resampled[both] == pytest.approx(given.x[both], abs=1e-4)

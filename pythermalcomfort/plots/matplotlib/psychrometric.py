@@ -44,6 +44,55 @@ _MIN_PLAUSIBLE_HR_MAX_G_KG = 1.0
 _HR_AXIS_LABEL = r"Humidity ratio [g$_\mathrm{water}$/kg$_\mathrm{dry\,air}$]"
 
 
+def _label_split_index(x: np.ndarray) -> int:
+    """Index on a curve where its label sits."""
+    return min(int(x.size * _PlotDefaults.Psychrometric.rh_label_position), x.size - 2)
+
+
+def _label_along_curve(ax: Axes, *, x: np.ndarray, y: np.ndarray, text: str) -> None:
+    """Write *text* in a gap in a curve, rotated to follow it.
+
+    Psychrometric charts conventionally carry the RH value on the curve rather
+    than beside it: the curves fan out, and a label parked at the end of one is
+    easy to read against the wrong line.  The caller leaves a gap in the curve
+    for the label, so nothing has to be painted over -- a filled background
+    would sit as a pale rectangle on whatever comfort region it lands on.
+
+    The rotation is computed in display coordinates, so it tracks the curve as
+    drawn rather than its slope in data units.
+
+    Parameters
+    ----------
+    ax : Axes
+        Axis holding the curve.
+    x, y : numpy.ndarray
+        The curve's visible points, in data coordinates.
+    text : str
+        Label to draw.
+    """
+    if x.size < 2:
+        return
+
+    index = _label_split_index(x)
+    (x0, y0), (x1, y1) = ax.transData.transform(
+        [(x[index], y[index]), (x[index + 1], y[index + 1])]
+    )
+    angle = float(np.degrees(np.arctan2(y1 - y0, x1 - x0)))
+
+    ax.text(
+        x[index],
+        y[index],
+        text,
+        color=_PlotDefaults.Psychrometric.rh_label_color,
+        fontsize=_PlotDefaults.Psychrometric.rh_label_fontsize,
+        zorder=_PlotDefaults.Psychrometric.zorder_rh_lines,
+        rotation=angle,
+        rotation_mode="anchor",
+        ha="center",
+        va="center",
+    )
+
+
 class PsychrometricPlot(ThresholdPlot):
     """Configure and render a psychrometric chart with threshold regions.
 
@@ -80,8 +129,8 @@ class PsychrometricPlot(ThresholdPlot):
 
         result = (
             PsychrometricPlot(pmv_ppd_iso)
-            .set_x_axis("tdb", 10.0, 36.0, resolution=0.2)
-            .set_y_axis("hr", 0.0, 30.0, resolution=0.5)
+            .set_x_axis("tdb", 10.0, 36.0)
+            .set_y_axis("hr", 0.0, 30.0)
             .set_params(vr=0.10, met=1.2, clo=0.5, wme=0.0)
             .set_regions(output="pmv", thresholds=[-0.5, 0.5])
             .plot(title="PMV — Psychrometric Chart")
@@ -94,7 +143,7 @@ class PsychrometricPlot(ThresholdPlot):
         min_val: float,
         max_val: float,
         *,
-        resolution: float,
+        resolution: float | None = None,
     ) -> PsychrometricPlot:
         """Set x-axis; any model temperature parameter is accepted.
 
@@ -111,8 +160,9 @@ class PsychrometricPlot(ThresholdPlot):
             Minimum value.
         max_val : float
             Maximum value.
-        resolution : float
-            Grid step along the x-axis.
+        resolution : float, optional
+            Sampling step along the x-axis.  Optional; see
+            :meth:`ThresholdPlot.set_x_axis`.
 
         Returns
         -------
@@ -133,7 +183,7 @@ class PsychrometricPlot(ThresholdPlot):
         min_val: float,
         max_val: float,
         *,
-        resolution: float,
+        resolution: float | None = None,
     ) -> PsychrometricPlot:
         """Set y-axis; must be ``'hr'`` (humidity ratio).
 
@@ -149,8 +199,9 @@ class PsychrometricPlot(ThresholdPlot):
             Minimum humidity ratio, [g water / kg dry air].
         max_val : float
             Maximum humidity ratio, [g water / kg dry air].
-        resolution : float
-            Grid step along the y-axis, [g water / kg dry air].
+        resolution : float, optional
+            Sampling step along the y-axis, [g water / kg dry air].  Optional;
+            see :meth:`ThresholdPlot.set_y_axis`.
 
         Returns
         -------
@@ -197,7 +248,9 @@ class PsychrometricPlot(ThresholdPlot):
                 "ignored."
             )
             warnings.warn(msg, UserWarning, stacklevel=2)
-        resolution_float = _validate_resolution(resolution)
+        resolution_float = (
+            None if resolution is None else _validate_resolution(resolution)
+        )
         self._y_axis = _AxisConfig(
             name=name,
             min_val=min_float,
@@ -293,7 +346,7 @@ class PsychrometricPlot(ThresholdPlot):
         ax: Axes | None = None,
         title: str | None = None,
         legend: bool = True,
-        show_lines: bool = True,
+        show_lines: bool = False,
         line_kws: Mapping[str, Any] | None = None,
         fill_kws: Mapping[str, Any] | None = None,
         legend_kws: Mapping[str, Any] | None = None,
@@ -301,7 +354,7 @@ class PsychrometricPlot(ThresholdPlot):
     ) -> ThresholdPlotResult:
         """Render the psychrometric chart with threshold regions and RH curves.
 
-        Delegates to :meth:`ThresholdPlot.plot` for contour rendering, then
+        Delegates to :meth:`ThresholdPlot.plot` for region rendering, then
         overlays:
 
         - A white fill masking the physically impossible RH > 100 % area,
@@ -321,16 +374,17 @@ class PsychrometricPlot(ThresholdPlot):
         legend : bool
             Whether to draw a legend.
         show_lines : bool
-            Whether to draw threshold contour boundaries.
+            Whether to draw a line along each threshold boundary.  Defaults to
+            ``False``; see :meth:`ThresholdPlot.plot`.
         line_kws : dict, optional
-            Keyword overrides forwarded to ``ax.plot`` for contour lines.
+            Keyword overrides forwarded to ``ax.plot`` for boundary lines.
         fill_kws : dict, optional
-            Keyword overrides forwarded to ``ax.contourf`` for region fills.
+            Keyword overrides forwarded to the region fill.
             Keys ``color`` and ``facecolor`` are reserved and rejected.
         legend_kws : dict, optional
             Keyword overrides forwarded to ``ax.legend``.
         invalid_color : str
-            Color used for out-of-model/invalid grid areas.
+            Color used for out-of-model/invalid areas.
 
         Returns
         -------
@@ -354,14 +408,11 @@ class PsychrometricPlot(ThresholdPlot):
             self._x_axis.max_val,
             _PlotDefaults.Psychrometric.n_tdb_points,
         )
-        label_offset = (
-            self._y_axis.max_val - self._y_axis.min_val
-        ) * _PlotDefaults.Psychrometric.rh_label_offset_fraction
-
         # White fill masks the physically impossible RH > 100% region.
-        # Because the contourf fills the entire grid (super-saturated cells are
-        # evaluated at rh=100% rather than NaN), there are no jagged pcolormesh
-        # edges to cover.  The mask starts exactly at the smooth saturation curve.
+        # Super-saturated cells are evaluated at rh=100% rather than NaN, so the
+        # regions cover the entire grid and there is no out-of-limits shading
+        # underneath for the mask to have to hide.  The mask starts exactly at
+        # the smooth saturation curve.
         # psy_ta_rh returns kg/kg dry air; the axis is g/kg dry air.
         hr_100 = psy_ta_rh(t_dense, np.full_like(t_dense, 100.0)).hr * _G_PER_KG
         ax.fill_between(
@@ -403,23 +454,25 @@ class PsychrometricPlot(ThresholdPlot):
             in_range = hr_line <= self._y_axis.max_val
             if not in_range.any():
                 continue
+            curve_t = t_dense[in_range]
+            curve_hr = hr_line[in_range]
+            # Blank out the stretch the label covers rather than drawing the
+            # label on a filled patch: a gap reads as part of the chart, a
+            # pale rectangle over a comfort region does not.
+            gap = _PlotDefaults.Psychrometric.rh_label_gap
+            broken = curve_hr.copy()
+            if curve_t.size >= 2:
+                split = _label_split_index(curve_t)
+                broken[max(split - gap, 0) : split + gap + 1] = np.nan
             ax.plot(
-                t_dense[in_range],
-                hr_line[in_range],
+                curve_t,
+                broken,
                 color=_PlotDefaults.Psychrometric.rh_line_color,
                 linestyle=":",
                 linewidth=_PlotDefaults.Psychrometric.rh_line_linewidth,
                 zorder=_PlotDefaults.Psychrometric.zorder_rh_lines,
             )
-            last_idx = int(np.where(in_range)[0][-1])
-            ax.text(
-                t_dense[last_idx],
-                hr_line[last_idx] + label_offset,
-                f"{rh_target}%",
-                color=_PlotDefaults.Psychrometric.rh_line_color,
-                fontsize=_PlotDefaults.Psychrometric.rh_label_fontsize,
-                zorder=_PlotDefaults.Psychrometric.zorder_rh_lines,
-            )
+            _label_along_curve(ax, x=curve_t, y=curve_hr, text=f"{rh_target}%")
 
         # ThresholdPlot.plot() labels the y-axis with the raw parameter name,
         # which here would be the bare string "hr".  Every caller was therefore
@@ -428,6 +481,10 @@ class PsychrometricPlot(ThresholdPlot):
         # something else can still override it via result.ax.set_ylabel().
         ax.set_ylabel(_HR_AXIS_LABEL)
 
+        # ThresholdPlot.plot() already clamped these back from whatever the
+        # region fills autoscaled to, which is why the RH labels above compute
+        # their rotation against the right transform.  Repeating it guards the
+        # overlays drawn since, none of which currently autoscale.
         ax.set_xlim(self._x_axis.min_val, self._x_axis.max_val)
         ax.set_ylim(self._y_axis.min_val, self._y_axis.max_val)
 

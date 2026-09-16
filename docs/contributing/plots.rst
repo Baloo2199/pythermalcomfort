@@ -20,8 +20,9 @@ you start:
      - When to use
      - Current examples
    * - **Grid plot**
-     - Model is evaluated on a 2-D (x, y) mesh; output is rendered as filled
-       contour regions.
+     - Model is evaluated across a 2-D (x, y) space; region boundaries are
+       solved by root-finding along one axis and the regions filled between
+       the resulting curves.
      - ``ThresholdPlot``, ``PsychrometricPlot``
    * - **Line plot**
      - Band boundaries are smooth lines computed directly from an equation;

@@ -136,7 +136,9 @@ class GridBasePlot(BasePlot):
             raise ValueError(msg)
 
         min_float, max_float = _parse_axis_range(min_val, max_val)
-        resolution_float = _validate_resolution(resolution)
+        resolution_float = (
+            None if resolution is None else _validate_resolution(resolution)
+        )
         axis_config = _AxisConfig(
             name=axis_name,
             min_val=min_float,
@@ -154,7 +156,7 @@ class GridBasePlot(BasePlot):
         min_val: float,
         max_val: float,
         *,
-        resolution: float,
+        resolution: float | None = None,
     ) -> GridBasePlot:
         """Set x-axis model parameter, range, and grid resolution.
 
@@ -166,8 +168,13 @@ class GridBasePlot(BasePlot):
             Minimum x-axis value.
         max_val : float
             Maximum x-axis value.
-        resolution : float
-            Grid step along x-axis used for contour evaluation.
+        resolution : float, optional
+            Sampling step along the x-axis.  Boundaries are solved by
+            bisection, so this does not set their precision and can usually be
+            left out: it only has to be fine enough to separate one threshold
+            crossing from the next, and a floor applies either way.  Pass a
+            value to sample more finely than the floor, for a model whose
+            output turns sharply.
 
         Returns
         -------
@@ -196,7 +203,7 @@ class GridBasePlot(BasePlot):
         min_val: float,
         max_val: float,
         *,
-        resolution: float,
+        resolution: float | None = None,
     ) -> GridBasePlot:
         """Set y-axis model parameter, range, and grid resolution.
 
@@ -208,8 +215,13 @@ class GridBasePlot(BasePlot):
             Minimum y-axis value.
         max_val : float
             Maximum y-axis value.
-        resolution : float
-            Grid step along y-axis used for contour evaluation.
+        resolution : float, optional
+            Sampling step along the y-axis.  Boundaries are solved by
+            bisection, so this does not set their precision and can usually be
+            left out: it only has to be fine enough to separate one threshold
+            crossing from the next, and a floor applies either way.  Pass a
+            value to sample more finely than the floor, for a model whose
+            output turns sharply.
 
         Returns
         -------
@@ -321,33 +333,6 @@ class GridBasePlot(BasePlot):
             accepts_var_kwargs=self._accepts_var_kwargs,
         )
         return call_kwargs
-
-    def _build_grid(
-        self,
-    ) -> tuple[float, float, float, float, np.ndarray, np.ndarray]:
-        """Build contour mesh grid from axis configs."""
-        x_min = float(self._x_axis.min_val)
-        x_max = float(self._x_axis.max_val)
-        y_min = float(self._y_axis.min_val)
-        y_max = float(self._y_axis.max_val)
-
-        x_vals = np.arange(x_min, x_max, self._x_axis.resolution)
-        if x_vals[-1] < x_max:
-            x_vals = np.append(x_vals, x_max)
-
-        y_vals = np.arange(y_min, y_max, self._y_axis.resolution)
-        if y_vals[-1] < y_max:
-            y_vals = np.append(y_vals, y_max)
-
-        if x_vals.size < 2 or y_vals.size < 2:
-            msg = (
-                "Axis resolution is too coarse for the chosen ranges. "
-                "Each axis requires at least 2 grid points."
-            )
-            raise ValueError(msg)
-
-        X, Y = np.meshgrid(x_vals, y_vals)
-        return x_min, x_max, y_min, y_max, X, Y
 
     def _evaluate_grid_output(
         self,
