@@ -9,8 +9,11 @@ Unreleased
   contouring a raster grid. For every row of the plot it bisects to the exact
   place where the output crosses a threshold, and where the model leaves its
   applicability limits, then fills between the resulting curves. Region edges
-  and the out-of-model-limits area follow smooth curves rather than grid steps,
-  and the chart no longer changes when you change ``resolution``. Charts where
+  and the out-of-model-limits area follow smooth curves rather than grid steps.
+  Where a boundary lies no longer depends on ``resolution`` at all; sampling
+  only decides whether a feature is *found*, so a model that turns sharply
+  enough to hide a crossing between two samples still needs a finer setting.
+  Charts where
   several limits clip each other -- ``pmv_ppd_iso``, whose PMV, dry-bulb and
   vapour-pressure limits used to leave a staircase of grey squares -- benefit
   most.
@@ -72,6 +75,10 @@ Unreleased
   follow it and set in a gap left in the curve, rather than parking it at the
   curve's end. The curves fan out, and a label beside the bundle is easy to
   read against the wrong line.
+
+* Fixed ``heat_index_rothfusz`` and ``heat_index_schoen`` classifying heat stress
+  from the rounded heat index. Categories now use the unrounded SI value, so
+  ``round_output`` only affects the returned numeric heat index (#381).
 
 4.5.0 (2026-09-15)
 ------------------
