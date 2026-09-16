@@ -47,6 +47,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 import numpy as np
 
@@ -62,6 +63,66 @@ _MAX_BISECT_STEPS: int = 60
 #: Signature of the model-evaluation callback: takes flat ``scan`` and ``row``
 #: coordinate arrays of equal length, returns the model output for each pair.
 EvaluateFn = Callable[[np.ndarray, np.ndarray], np.ndarray]
+
+
+class _ValidityEdge(NamedTuple):
+    """Where a row's valid interval begins or ends.
+
+    Attributes
+    ----------
+    row : int
+        Row the edge belongs to.
+    high_end : bool
+        ``True`` for the high end of the scan axis, ``False`` for the low end.
+    """
+
+    row: int
+    high_end: bool
+
+
+class _Cut(NamedTuple):
+    """Where a row crosses one branch of one threshold.
+
+    Attributes
+    ----------
+    threshold : int
+        Index into the threshold list.
+    branch : int
+        Which crossing of that threshold, counted along the scan axis.
+    row : int
+        Row the crossing belongs to.
+    """
+
+    threshold: int
+    branch: int
+    row: int
+
+
+class _Bracket(NamedTuple):
+    """One boundary located well enough to bisect.
+
+    Attributes
+    ----------
+    lo, hi : float
+        Scan coordinates straddling the boundary; ``predicate`` differs
+        between them.
+    row : int
+        Row being scanned.
+    target : float
+        Threshold the predicate compares against, ``NaN`` for a validity edge
+        whose predicate is ``isfinite`` instead.
+    predicate_at_lo : bool
+        Value of the predicate at ``lo``.
+    slot : _ValidityEdge or _Cut
+        What the refined position is for.
+    """
+
+    lo: float
+    hi: float
+    row: int
+    target: float
+    predicate_at_lo: bool
+    slot: _ValidityEdge | _Cut
 
 
 @dataclass(frozen=True)
@@ -205,10 +266,8 @@ class _RowScan:
 
     Attributes
     ----------
-    brackets : list of tuple
-        ``(lo, hi, row, target, predicate_at_lo, slot)`` per boundary to
-        refine.  ``slot`` is ``("valid_start" | "valid_end", row)`` or
-        ``("cut", threshold, crossing, row)``.
+    brackets : list of _Bracket
+        One per boundary still to be refined.
     valid_start, valid_end : numpy.ndarray
         Extent of the valid interval per row, ``NaN`` where a bracket still
         has to be refined.
@@ -224,7 +283,7 @@ class _RowScan:
         How many times each threshold is crossed per row.
     """
 
-    brackets: list[tuple]
+    brackets: list[_Bracket]
     valid_start: np.ndarray
     valid_end: np.ndarray
     has_valid: np.ndarray
@@ -347,7 +406,7 @@ def _scan_rows(
     flips: list[list[list[tuple[int, int]]]] = [
         [[] for _ in range(n_rows)] for _ in range(n_thresholds)
     ]
-    brackets: list[tuple] = []
+    brackets: list[_Bracket] = []
 
     for row in range(n_rows):
         row_finite = finite[row]
@@ -368,13 +427,27 @@ def _scan_rows(
             valid_start[row] = scan[0]
         else:
             brackets.append(
-                (scan[first - 1], scan[first], row, np.nan, False, ("valid_start", row))
+                _Bracket(
+                    lo=scan[first - 1],
+                    hi=scan[first],
+                    row=row,
+                    target=np.nan,
+                    predicate_at_lo=False,
+                    slot=_ValidityEdge(row=row, high_end=False),
+                )
             )
         if last == scan.size - 1:
             valid_end[row] = scan[-1]
         else:
             brackets.append(
-                (scan[last], scan[last + 1], row, np.nan, True, ("valid_end", row))
+                _Bracket(
+                    lo=scan[last],
+                    hi=scan[last + 1],
+                    row=row,
+                    target=np.nan,
+                    predicate_at_lo=True,
+                    slot=_ValidityEdge(row=row, high_end=True),
+                )
             )
 
         for k, threshold in enumerate(thresholds):
@@ -401,13 +474,13 @@ def _scan_rows(
                 return None
             for (flip, _), branch in zip(flips[k][row], assignment, strict=True):
                 brackets.append(
-                    (
-                        s_run[flip],
-                        s_run[flip + 1],
-                        row,
-                        float(threshold),
-                        bool(z_run[flip] >= threshold),
-                        ("cut", k, branch, row),
+                    _Bracket(
+                        lo=s_run[flip],
+                        hi=s_run[flip + 1],
+                        row=row,
+                        target=float(threshold),
+                        predicate_at_lo=bool(z_run[flip] >= threshold),
+                        slot=_Cut(threshold=k, branch=branch, row=row),
                     )
                 )
 
@@ -654,15 +727,14 @@ def solve_region_bands(
             return None
 
         for root, bracket in zip(roots, brackets, strict=True):
-            slot = bracket[5]
-            if slot[0] == "valid_start":
-                valid_start[slot[1]] = root
-            elif slot[0] == "valid_end":
-                valid_end[slot[1]] = root
+            slot = bracket.slot
+            if isinstance(slot, _ValidityEdge):
+                edge = valid_end if slot.high_end else valid_start
+                edge[slot.row] = root
             else:
-                index = _cut_index(n_crossings, slot[1], slot[2])
-                cuts[index, slot[3]] = root
-                crossed[index, slot[3]] = True
+                index = _cut_index(n_crossings, slot.threshold, slot.branch)
+                cuts[index, slot.row] = root
+                crossed[index, slot.row] = True
 
     _collapse_missing_cuts(
         cuts=cuts,

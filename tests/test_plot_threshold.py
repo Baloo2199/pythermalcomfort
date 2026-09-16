@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 from matplotlib.colors import to_rgb
 from matplotlib.lines import Line2D
+from matplotlib.transforms import Bbox
 
 from pythermalcomfort.models import pmv_ppd_iso
 from pythermalcomfort.plots.matplotlib.threshold import (
@@ -433,13 +434,6 @@ def test_plot_grid_includes_exact_endpoints() -> None:
 # ── curve backend ──────────────────────────────────────────────────────────
 
 
-def x_decreasing_model(tdb, rh):
-    """Output falls along x, so regions run right-to-left."""
-    tdb_arr = np.asarray(tdb, dtype=float)
-    rh_arr = np.asarray(rh, dtype=float)
-    return SimpleNamespace(pmv=(25.0 - tdb_arr) / 10.0 - (rh_arr - 50.0) / 100.0)
-
-
 def x_non_monotone_model(tdb, rh):
     """Cross each threshold twice along x, but only once along rh, so this one
     is solvable in the y direction alone."""
@@ -734,3 +728,89 @@ def test_calling_a_model_directly_still_warns() -> None:
         )
 
     assert any("applicability limits" in str(w.message) for w in caught)
+
+
+def test_curve_solver_falls_back_to_scanning_y_when_x_cannot_be_laid_out() -> None:
+    # A parabola in x crosses each threshold twice in the middle rows and not
+    # at all in the outer ones, so the x scan cannot give every row the same
+    # layout. rh is monotone, so scanning the other way works.
+    plot = (
+        ThresholdPlot(x_non_monotone_model)
+        .set_x_axis("tdb", 20.0, 30.0)
+        .set_y_axis("rh", 20.0, 80.0)
+        .set_regions(output="pmv", thresholds=[-0.25, 0.25])
+    )
+    bands = plot._solve_bands("pmv", [-0.25, 0.25])
+
+    assert bands is not None
+    assert bands.scan_axis == "y"
+    assert bands.band_regions == [0, 1, 2]
+
+    for curve in plot.plot().boundaries:
+        drawn = np.isfinite(curve.y)
+        assert drawn.any()
+        # pmv = (tdb - 25)^2 / 50 + (rh - 50) / 40 == threshold
+        expected = 50.0 + 40.0 * (
+            curve.threshold - ((curve.x[drawn] - 25.0) ** 2) / 50.0
+        )
+        assert curve.y[drawn] == pytest.approx(expected, abs=1e-4)
+
+
+def test_boundaries_are_solved_on_unrounded_model_output() -> None:
+    # pmv_ppd_iso rounds PMV to 0.01, which turns the bisection predicate into
+    # a staircase and parks the boundary on the edge of a plateau.
+    def build(**params: object) -> ThresholdPlot:
+        return (
+            ThresholdPlot(pmv_ppd_iso)
+            .set_x_axis("tdb", 18.0, 34.0)
+            .set_y_axis("rh", 0.0, 100.0)
+            .set_params(vr=0.1, met=1.2, clo=0.5, wme=0.0, model="7730-2005", **params)
+            .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+        )
+
+    def worst_error(curve) -> float:
+        drawn = np.isfinite(curve.x)
+        pmv = pmv_ppd_iso(
+            tdb=curve.x[drawn],
+            tr=curve.x[drawn],
+            vr=0.1,
+            rh=curve.y[drawn],
+            met=1.2,
+            clo=0.5,
+            wme=0.0,
+            model="7730-2005",
+            round_output=False,
+        ).pmv
+        return float(np.abs(np.asarray(pmv) - curve.threshold).max())
+
+    assert worst_error(build().plot().boundaries[0]) < 1e-4
+    # An explicit round_output is still the caller's to make.
+    assert worst_error(build(round_output=True).plot().boundaries[0]) > 1e-4
+
+
+def test_only_applicability_warnings_are_suppressed_while_plotting() -> None:
+    def noisy_model(tdb, rh):
+        warnings.warn("solver did not converge", UserWarning, stacklevel=2)
+        return SimpleNamespace(pmv=(np.asarray(tdb, dtype=float) - 25.0) / 10.0)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        (
+            ThresholdPlot(noisy_model)
+            .set_x_axis("tdb", 20.0, 30.0)
+            .set_y_axis("rh", 20.0, 80.0)
+            .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+            .plot()
+        )
+
+    assert any("solver did not converge" in str(w.message) for w in caught)
+
+
+def test_title_offset_accepts_every_bbox_to_anchor_form() -> None:
+    for anchor in (
+        (0.5, 1.02),
+        (0.5, 1.02, 0.4, 0.1),
+        Bbox.from_bounds(0.5, 1.02, 0.4, 0.1),
+    ):
+        result = _curve_plot().plot(title="t", legend_kws={"bbox_to_anchor": anchor})
+        assert result.ax.title.get_position()[1] == pytest.approx(1.14, abs=1e-6)

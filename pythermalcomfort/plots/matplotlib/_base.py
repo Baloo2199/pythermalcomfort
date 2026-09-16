@@ -317,11 +317,42 @@ class GridBasePlot(BasePlot):
                 "Use set_regions(..., colors=...) to control region colors."
             )
 
+    def _prefer_unrounded_output(self, call_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Ask the model for unrounded output when it supports it.
+
+        Models round their results for display -- ``pmv_ppd_iso`` to 0.01 PMV
+        and 0.1 PPD -- which turns the output into a staircase.  Bisecting
+        ``output >= threshold`` on a staircase converges to the edge of a
+        quantisation plateau rather than the real crossing, so a boundary can
+        sit a whole step away from where it belongs: 0.01 PMV is about 0.03
+        degC of dry-bulb at a typical slope, which is visible on a chart.
+
+        An explicit ``round_output`` in :meth:`set_params` is left alone, so a
+        caller who wants to see the quantisation still can.
+
+        Parameters
+        ----------
+        call_kwargs : dict
+            Keyword arguments assembled for the model call.
+
+        Returns
+        -------
+        dict
+            The same arguments, with ``round_output=False`` added where the
+            model accepts it and the caller has not set it.
+        """
+        if "round_output" in self._allowed_args and "round_output" not in (
+            self._fixed_values
+        ):
+            call_kwargs["round_output"] = False
+        return call_kwargs
+
     def _build_call_kwargs(self, x_value: Any, y_value: Any) -> dict[str, Any]:
         """Build validated kwargs for a model evaluation call."""
         call_kwargs: dict[str, Any] = dict(self._fixed_values)
         call_kwargs[self._x_axis.name] = x_value
         call_kwargs[self._y_axis.name] = y_value
+        call_kwargs = self._prefer_unrounded_output(call_kwargs)
         call_kwargs = _apply_default_links_to_kwargs(
             call_kwargs,
             allowed_args=self._allowed_args,

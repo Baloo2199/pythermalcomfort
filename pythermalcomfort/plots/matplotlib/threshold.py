@@ -28,6 +28,7 @@ from pythermalcomfort.plots.matplotlib._shared import (
     _apply_axes_style,
     _AxisConfig,
     _configure_regions,
+    _legend_anchor_y,
     _PlotDefaults,
     _title_y_above_legend,
 )
@@ -424,7 +425,7 @@ class ThresholdPlot(GridBasePlot):
                 title_y = _title_y_above_legend(
                     n_handles=len(handles),
                     ncol=int(legend_opts["ncol"]),
-                    anchor_y=float(legend_opts["bbox_to_anchor"][1]),
+                    anchor_y=_legend_anchor_y(legend_opts["bbox_to_anchor"]),
                 )
 
             ax.set_xlim(self._x_axis.min_val, self._x_axis.max_val)

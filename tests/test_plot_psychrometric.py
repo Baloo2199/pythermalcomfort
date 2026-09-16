@@ -133,8 +133,16 @@ def test_grid_is_evaluated_as_g_per_kg() -> None:
     actual = plot._evaluate_grid_output(x=tdb, y=hr_g_kg, output_name="pmv")
 
     expected_rh = hr_to_rh(10.0 / 1000.0, 25.0)
+    # Grid evaluation asks for unrounded output, because bisecting a rounded
+    # staircase parks a boundary on the edge of a quantisation plateau.
     expected = pmv_ppd_iso(
-        tdb=25.0, tr=25.0, vr=0.1, rh=float(expected_rh), met=1.2, clo=0.5
+        tdb=25.0,
+        tr=25.0,
+        vr=0.1,
+        rh=float(expected_rh),
+        met=1.2,
+        clo=0.5,
+        round_output=False,
     ).pmv
 
     assert float(actual[0, 0]) == pytest.approx(float(expected), abs=1e-9)

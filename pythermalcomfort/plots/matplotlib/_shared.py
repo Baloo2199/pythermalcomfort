@@ -16,6 +16,7 @@ import numpy as np
 from matplotlib import colors as mcolors
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.transforms import BboxBase
 
 # ── axis helpers ───────────────────────────────────────────────────────────
 
@@ -149,9 +150,12 @@ class _PlotDefaults:
         #: Labels are darker than their curves: the line can be faint because
         #: it is background, but the text has to be read.
         rh_label_color: str = "#6b6b6b"
-        #: Half-width, in curve samples, of the gap left for the label.
-        rh_label_gap: int = 11
-        rh_label_offset_fraction: float = 0.01
+        #: Half-width of the gap left for the label, as a fraction of the
+        #: curve's *visible* length.  A fixed sample count would blank most of
+        #: a short curve: on a sub-1 g/kg chart -- legitimate for cold air --
+        #: the 100 % curve keeps only ~49 of its 500 samples, and 11 samples
+        #: either side of the label erased almost half of it.
+        rh_label_gap_fraction: float = 0.023
         #: Where along each visible RH curve its label sits, as a fraction of
         #: the curve's in-range span.  Just short of the end keeps the label
         #: inside the axes while staying out of the busy lower-left corner.
@@ -206,6 +210,28 @@ _PYTHERMALCOMFORT_RC: dict[str, Any] = {
 }
 
 
+def _legend_anchor_y(bbox_to_anchor: Any) -> float:
+    """Read the y coordinate out of any ``bbox_to_anchor`` Matplotlib accepts.
+
+    ``ax.legend`` takes a 2-tuple, a 4-tuple or a ``BboxBase``.  Only the
+    tuples are subscriptable, so a caller passing a ``Bbox`` used to crash
+    here before their legend was ever drawn.
+
+    Parameters
+    ----------
+    bbox_to_anchor : BboxBase or tuple
+        The anchor as passed to ``ax.legend``.
+
+    Returns
+    -------
+    float
+        The anchor's lower y coordinate, in axes coordinates.
+    """
+    if isinstance(bbox_to_anchor, BboxBase):
+        return float(bbox_to_anchor.y0)
+    return float(bbox_to_anchor[1])
+
+
 def _title_y_above_legend(*, n_handles: int, ncol: int, anchor_y: float) -> float:
     """Return a title ``y`` that clears a legend of ``n_handles`` entries.
 
@@ -231,6 +257,12 @@ def _title_y_above_legend(*, n_handles: int, ncol: int, anchor_y: float) -> floa
     return anchor_y + rows * _PlotDefaults.title_legend_row_height
 
 
+#: Matches only the warning :func:`~pythermalcomfort.shared_functions.valid_range`
+#: raises.  Anchored loosely because the message opens with the parameter name
+#: and the offending values, which vary.
+_APPLICABILITY_WARNING = r".*outside the applicability limits"
+
+
 @contextlib.contextmanager
 def _suppress_applicability_warnings() -> Iterator[None]:
     """Silence the models' out-of-applicability-limits warnings.
@@ -243,11 +275,19 @@ def _suppress_applicability_warnings() -> Iterator[None]:
     about to show.  One 129-point sweep of ``pmv_ppd_iso`` raises two warnings
     of about 500 characters each; a notebook full of charts drowns in them.
 
-    The information is not lost: out-of-limits areas are shaded and carry their
-    own legend entry.  Call the model directly to see the warnings.
+    Only that one message is filtered.  Models raise other warnings of the same
+    category that report a calculation going wrong rather than an input being
+    out of range -- ``cooling_effect`` when its solver returns zero,
+    ``sports_heat_stress_risk`` when an internal solver falls back -- and a
+    chart must not swallow those.
+
+    The information is not lost either: out-of-limits areas are shaded and
+    carry their own legend entry.  Call the model directly to see the warnings.
     """
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
+        warnings.filterwarnings(
+            "ignore", message=_APPLICABILITY_WARNING, category=UserWarning
+        )
         yield
 
 

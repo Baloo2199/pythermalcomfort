@@ -7,8 +7,6 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.collections import QuadMesh
-from matplotlib.contour import QuadContourSet
 
 from pythermalcomfort.models import heat_index_lu, pmv_ppd_iso, utci
 from pythermalcomfort.plots.matplotlib import (
@@ -21,20 +19,6 @@ from pythermalcomfort.utilities import psy_ta_rh
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTDIR = os.path.join(SCRIPT_DIR, "output")
 os.makedirs(OUTDIR, exist_ok=True)
-
-
-def _rasterize_fills(ax):
-    """Rasterize the contourf/pcolormesh region fills.
-
-    Matplotlib's PDF backend draws a hairline seam between adjacent
-    same-color quads in vector output, visible as a faint grid over the
-    filled regions (most obvious on the flat gray "out of model limits"
-    area). Rasterizing those artists avoids the seam; everything else
-    (boundary lines, legend, text) stays vector.
-    """
-    for coll in ax.collections:
-        if isinstance(coll, (QuadContourSet, QuadMesh)):
-            coll.set_rasterized(True)
 
 
 RNG = np.random.default_rng(42)
@@ -130,7 +114,6 @@ axes[2].set_title("Heat Index", y=Y_TITLE_OFFSET + 0.15)
 
 for ax in axes:
     ax.grid(False)
-    _rasterize_fills(ax)
 
 fig.savefig(os.path.join(OUTDIR, "example_1.pdf"), bbox_inches="tight", dpi=300)
 plt.show()
@@ -190,7 +173,6 @@ ax_psy.set_xlabel(r"Dry-bulb temperature ($^\circ$C)")
 ax_psy.grid(False)
 ax_psy.spines["top"].set_visible(False)
 ax_psy.spines["right"].set_visible(False)
-_rasterize_fills(ax_psy)
 # The y-label is supplied by PsychrometricPlot itself and is already in g/kg.
 
 # Overlay scatter measurements. psy_ta_rh returns humidity ratio in kg/kg dry

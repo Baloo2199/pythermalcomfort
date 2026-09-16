@@ -307,6 +307,7 @@ class PsychrometricPlot(ThresholdPlot):
         grid_kwargs: dict[str, Any] = dict(self._fixed_values)
         grid_kwargs[self._x_axis.name] = x_flat
         grid_kwargs["rh"] = rh_safe
+        grid_kwargs = self._prefer_unrounded_output(grid_kwargs)
         grid_kwargs = _apply_default_links_to_kwargs(
             grid_kwargs,
             allowed_args=self._allowed_args,
@@ -461,9 +462,14 @@ class PsychrometricPlot(ThresholdPlot):
             # Blank out the stretch the label covers rather than drawing the
             # label on a filled patch: a gap reads as part of the chart, a
             # pale rectangle over a comfort region does not.
-            gap = _PlotDefaults.Psychrometric.rh_label_gap
             broken = curve_hr.copy()
             if curve_t.size >= 2:
+                gap = max(
+                    1,
+                    round(
+                        curve_t.size * _PlotDefaults.Psychrometric.rh_label_gap_fraction
+                    ),
+                )
                 split = _label_split_index(curve_t)
                 broken[max(split - gap, 0) : split + gap + 1] = np.nan
             ax.plot(
