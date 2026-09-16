@@ -12,6 +12,7 @@ import pytest
 from matplotlib.colors import to_rgb
 from matplotlib.lines import Line2D
 
+from pythermalcomfort.models import pmv_ppd_iso
 from pythermalcomfort.plots.matplotlib.threshold import (
     OUT_OF_MODEL_LIMITS_COLOR,
     ThresholdPlot,
@@ -694,3 +695,42 @@ def test_resolution_is_optional_and_changes_nothing_visible() -> None:
     both = np.isfinite(resampled) & np.isfinite(given.x)
     assert both.sum() > 10
     assert resampled[both] == pytest.approx(given.x[both], abs=1e-4)
+
+
+def test_plotting_does_not_emit_the_models_applicability_warnings() -> None:
+    # Sweeping across a model's limits is how the chart finds the
+    # out-of-model-limits area, so the warning would fire on every evaluation
+    # and say nothing the chart is not about to shade.
+    plot = (
+        ThresholdPlot(pmv_ppd_iso)
+        .set_x_axis("tdb", 10.0, 40.0)
+        .set_y_axis("rh", 0.0, 100.0)
+        .set_params(vr=0.1, met=1.2, clo=0.5, wme=0.0, model="7730-2005")
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = plot.plot()
+
+    limit_warnings = [w for w in caught if "applicability limits" in str(w.message)]
+    assert limit_warnings == []
+    # The information is still on the chart.
+    assert result.legend is not None
+    assert "Out of model limits" in [t.get_text() for t in result.legend.get_texts()]
+
+
+def test_calling_a_model_directly_still_warns() -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        pmv_ppd_iso(
+            tdb=[35.0],
+            tr=[35.0],
+            vr=0.1,
+            rh=[50.0],
+            met=1.2,
+            clo=0.5,
+            model="7730-2005",
+        )
+
+    assert any("applicability limits" in str(w.message) for w in caught)

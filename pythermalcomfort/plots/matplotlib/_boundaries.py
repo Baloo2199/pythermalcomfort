@@ -45,7 +45,6 @@ reported by returning ``None``.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
@@ -642,20 +641,15 @@ def solve_region_bands(
 
     if scanned.brackets:
         brackets = scanned.brackets
-        # The grid evaluation above already warned about out-of-limits inputs.
-        # Refinement deliberately probes the same area dozens of times, so
-        # repeating the warning per iteration would bury everything else.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)
-            roots = _bisect(
-                evaluate=evaluate,
-                lo=np.array([b[0] for b in brackets], dtype=float),
-                hi=np.array([b[1] for b in brackets], dtype=float),
-                rows=rows[np.array([b[2] for b in brackets], dtype=int)],
-                targets=np.array([b[3] for b in brackets], dtype=float),
-                predicate_at_lo=np.array([b[4] for b in brackets], dtype=bool),
-                tol=abs(scan[-1] - scan[0]) * _REL_TOL,
-            )
+        roots = _bisect(
+            evaluate=evaluate,
+            lo=np.array([b[0] for b in brackets], dtype=float),
+            hi=np.array([b[1] for b in brackets], dtype=float),
+            rows=rows[np.array([b[2] for b in brackets], dtype=int)],
+            targets=np.array([b[3] for b in brackets], dtype=float),
+            predicate_at_lo=np.array([b[4] for b in brackets], dtype=bool),
+            tol=abs(scan[-1] - scan[0]) * _REL_TOL,
+        )
         if roots is None:
             return None
 

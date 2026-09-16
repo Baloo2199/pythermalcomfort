@@ -16,6 +16,7 @@ from pythermalcomfort.plots.matplotlib._shared import (
     _extract_output_by_name,
     _parse_axis_range,
     _PlotDefaults,
+    _suppress_applicability_warnings,
     _validate_model_kwargs,
     _validate_resolution,
 )
@@ -319,7 +320,8 @@ class PsychrometricPlot(ThresholdPlot):
         )
 
         try:
-            result = self._model_func(**grid_kwargs)
+            with _suppress_applicability_warnings():
+                result = self._model_func(**grid_kwargs)
         except Exception as exc:
             msg = f"Failed to evaluate model on psychrometric grid: {exc}"
             raise ValueError(msg) from exc

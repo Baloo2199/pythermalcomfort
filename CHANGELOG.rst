@@ -55,6 +55,14 @@ Unreleased
   multi-panel figures were previously styled inconsistently. Call
   ``result.ax.grid(True)`` to put the grid back.
 
+* Threshold and psychrometric charts no longer relay the models'
+  out-of-applicability-limits warnings. Sweeping across those limits is how the
+  chart finds the out-of-model-limits area, so the warning fired on every grid
+  evaluation and said nothing the chart was not about to shade -- one
+  129-point sweep of ``pmv_ppd_iso`` raises two warnings of about 500
+  characters each, and a notebook full of charts drowned in them. Calling a
+  model directly still warns exactly as before.
+
 * A chart title now sits above however many rows its legend needs, instead of
   at a fixed height: a five-region chart wrapped its legend onto two rows and
   the title landed in the middle of it. The fixed height was marginally too low

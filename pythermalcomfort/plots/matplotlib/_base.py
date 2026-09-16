@@ -18,6 +18,7 @@ from pythermalcomfort.plots.matplotlib._shared import (
     _inspect_model_signature,
     _parse_axis_range,
     _PlotDefaults,
+    _suppress_applicability_warnings,
     _validate_model_kwargs,
     _validate_resolution,
 )
@@ -346,7 +347,8 @@ class GridBasePlot(BasePlot):
         y_flat = np.asarray(y).ravel()
         grid_kwargs = self._build_call_kwargs(x_flat, y_flat)
         try:
-            result = self._model_func(**grid_kwargs)
+            with _suppress_applicability_warnings():
+                result = self._model_func(**grid_kwargs)
         except Exception as exc:
             msg = f"Failed to evaluate model on contour grid: {exc}"
             raise ValueError(msg) from exc

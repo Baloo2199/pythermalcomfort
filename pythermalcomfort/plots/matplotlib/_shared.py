@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 import math
-from collections.abc import Mapping, Sequence
+import warnings
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from numbers import Number
 from types import MappingProxyType
@@ -227,6 +229,26 @@ def _title_y_above_legend(*, n_handles: int, ncol: int, anchor_y: float) -> floa
     """
     rows = max(1, math.ceil(n_handles / max(1, ncol)))
     return anchor_y + rows * _PlotDefaults.title_legend_row_height
+
+
+@contextlib.contextmanager
+def _suppress_applicability_warnings() -> Iterator[None]:
+    """Silence the models' out-of-applicability-limits warnings.
+
+    Every model warns, at length, when an input falls outside the limits its
+    standard defines.  That is the right default for someone calling a model
+    directly, but a threshold chart deliberately sweeps across those limits --
+    finding where they fall is how it draws the out-of-model-limits area -- so
+    the warning fires on every evaluation and says nothing the chart is not
+    about to show.  One 129-point sweep of ``pmv_ppd_iso`` raises two warnings
+    of about 500 characters each; a notebook full of charts drowns in them.
+
+    The information is not lost: out-of-limits areas are shaded and carry their
+    own legend entry.  Call the model directly to see the warnings.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        yield
 
 
 def _apply_axes_style(ax: Axes) -> None:
