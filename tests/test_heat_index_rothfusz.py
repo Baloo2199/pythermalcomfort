@@ -78,3 +78,39 @@ def test_vector_input_no_rounding() -> None:
     assert isinstance(result.stress_category, np.ndarray)
     assert result.stress_category.shape == (3,)
     assert result.stress_category[0] == "extreme caution"
+
+
+@pytest.mark.parametrize(
+    ("tdb", "boundary", "category"),
+    [
+        (26.583615, 27.0, "caution"),
+        (30.645013, 32.0, "extreme caution"),
+        (35.152822, 41.0, "danger"),
+        (39.775673, 54.0, "extreme danger"),
+    ],
+)
+def test_category_uses_unrounded_heat_index(tdb, boundary, category) -> None:
+    """Keep the higher category when display rounding reaches a bin edge."""
+    rounded = heat_index_rothfusz(tdb, 50, limit_inputs=False)
+    unrounded = heat_index_rothfusz(tdb, 50, round_output=False, limit_inputs=False)
+
+    assert boundary < unrounded.hi < boundary + 0.05
+    assert rounded.hi == boundary
+    assert rounded.stress_category == unrounded.stress_category == category
+
+
+@pytest.mark.parametrize("round_output", [True, False])
+def test_category_rounding_with_broadcast_and_invalid_input(round_output) -> None:
+    """Classify unrounded array values while preserving the applicability mask."""
+    with pytest.warns(UserWarning):
+        result = heat_index_rothfusz(
+            [30.645013, 35.152822, 39.775673, 25],
+            50,
+            round_output=round_output,
+        )
+
+    np.testing.assert_array_equal(
+        result.stress_category[:3], ["extreme caution", "danger", "extreme danger"]
+    )
+    assert np.isnan(result.hi[3])
+    assert np.isnan(result.stress_category[3])
