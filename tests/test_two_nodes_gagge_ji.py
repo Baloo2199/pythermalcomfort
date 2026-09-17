@@ -117,6 +117,38 @@ def test_two_nodes_gagge_ji_complete_time_series_regression() -> None:
     )
 
 
+def test_two_nodes_gagge_ji_multidimensional_broadcast_output() -> None:
+    """Each broadcast input element produces one independent time series."""
+    inputs = {
+        "v": 0.25,
+        "met": 0.95,
+        "clo": 0.1,
+        "vapor_pressure": 20 * p_sat_torr(tdb=36.5) / 100,
+        "length_time_simulation": 4,
+    }
+    result = two_nodes_gagge_ji(
+        tdb=np.array([[36.5], [31.0]]),
+        tr=np.array([36.5, 31.5]),
+        **inputs,
+    )
+    expected = [
+        two_nodes_gagge_ji(tdb=tdb, tr=tr, **inputs)
+        for tdb in (36.5, 31.0)
+        for tr in (36.5, 31.5)
+    ]
+
+    assert isinstance(result.t_core, list)
+    assert isinstance(result.t_skin, list)
+    assert [values.shape for values in result.t_core] == [(4,)] * 4
+    assert [values.shape for values in result.t_skin] == [(4,)] * 4
+    np.testing.assert_allclose(
+        result.t_core, [item.t_core for item in expected], rtol=1e-12, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        result.t_skin, [item.t_skin for item in expected], rtol=1e-12, atol=1e-12
+    )
+
+
 # Scenarios based on Table 4 from the paper by Ji et al. (2022)
 @pytest.mark.parametrize(
     (

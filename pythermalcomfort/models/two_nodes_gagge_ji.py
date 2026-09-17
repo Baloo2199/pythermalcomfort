@@ -209,9 +209,8 @@ def two_nodes_gagge_ji(
             initial_skin_temp=float(initial_skin_temp),
             initial_core_temp=float(initial_core_temp),
         )
-        result_shape = (*output_shape, simulation_steps)
-        t_core = list(t_core_array.reshape(result_shape))
-        t_skin = list(t_skin_array.reshape(result_shape))
+        t_core = list(t_core_array)
+        t_skin = list(t_skin_array)
 
     return GaggeTwoNodesJi(t_core=t_core, t_skin=t_skin)
 
