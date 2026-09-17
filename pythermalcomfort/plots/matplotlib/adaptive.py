@@ -99,6 +99,8 @@ class RegionsConfig:
         - ASHRAE keys: ``"80"``, ``"90"``
         - EN keys: ``"cat_i"``, ``"cat_ii"``, ``"cat_iii"``
 
+        Each key may appear only once.
+
     labels : sequence of str or None
         Custom labels for the visible bands.  Must have the same length as
         *show* (or the total number of bands if *show* is ``None``).  If
@@ -136,6 +138,11 @@ class RegionsConfig:
                     f"Invalid band key(s): {', '.join(invalid)}. "
                     f"Valid keys for '{standard}': {', '.join(sorted(valid_keys))}"
                 )
+                raise ValueError(msg)
+
+            duplicate_keys = sorted({k for k in self.show if self.show.count(k) > 1})
+            if duplicate_keys:
+                msg = f"Duplicate band key(s): {', '.join(duplicate_keys)}."
                 raise ValueError(msg)
 
         if self.labels is not None:

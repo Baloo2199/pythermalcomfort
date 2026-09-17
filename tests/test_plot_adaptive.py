@@ -139,6 +139,12 @@ def test_regions_config_validates_invalid_keys() -> None:
         cfg._validate("ashrae")
 
 
+def test_regions_config_rejects_duplicate_keys() -> None:
+    cfg = RegionsConfig(show=["90", "90"])
+    with pytest.raises(ValueError, match="Duplicate band key"):
+        cfg._validate("ashrae")
+
+
 def test_regions_config_rejects_ashrae_keys_on_en() -> None:
     cfg = RegionsConfig(show=["80"])
     with pytest.raises(ValueError, match="Invalid band key"):
