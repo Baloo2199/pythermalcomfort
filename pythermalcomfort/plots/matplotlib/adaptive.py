@@ -99,6 +99,8 @@ class RegionsConfig:
         - ASHRAE keys: ``"80"``, ``"90"``
         - EN keys: ``"cat_i"``, ``"cat_ii"``, ``"cat_iii"``
 
+        Each key may appear only once.
+
     labels : sequence of str or None
         Custom labels for the visible bands.  Must have the same length as
         *show* (or the total number of bands if *show* is ``None``).  If
@@ -136,6 +138,11 @@ class RegionsConfig:
                     f"Invalid band key(s): {', '.join(invalid)}. "
                     f"Valid keys for '{standard}': {', '.join(sorted(valid_keys))}"
                 )
+                raise ValueError(msg)
+
+            duplicate_keys = sorted({k for k in self.show if self.show.count(k) > 1})
+            if duplicate_keys:
+                msg = f"Duplicate band key(s): {', '.join(duplicate_keys)}."
                 raise ValueError(msg)
 
         if self.labels is not None:
@@ -429,14 +436,20 @@ class AdaptivePlot(BasePlot):
         if cfg is not None and cfg.show is not None:
             show_set = set(cfg.show)
             visible_specs = [s for s in all_specs if s.key in show_set]
+            # ``labels``/``colors`` are positional against the caller's
+            # ``show`` order, while bands are always rendered in canonical
+            # (widest to narrowest) order, so map overrides by band key.
+            override_index = {key: i for i, key in enumerate(cfg.show)}
         else:
             visible_specs = list(all_specs)
+            override_index = {spec.key: i for i, spec in enumerate(visible_specs)}
 
         resolved: list[_ResolvedBand] = []
-        for i, spec in enumerate(visible_specs):
+        for spec in visible_specs:
             label = spec.default_label
             color = spec.default_color
             if cfg is not None:
+                i = override_index[spec.key]
                 if cfg.labels is not None:
                     label = str(cfg.labels[i])
                 if cfg.colors is not None:
