@@ -31,6 +31,7 @@ from pythermalcomfort.plots.matplotlib._base import BasePlot
 from pythermalcomfort.plots.matplotlib._shared import (
     _PYTHERMALCOMFORT_RC,
     BasePlotResult,
+    _limit_labeled_ticks,
     _PlotDefaults,
 )
 
@@ -598,6 +599,7 @@ class AdaptivePlot(BasePlot):
             ax.set_xlim(self._t_rm_range)
             if self._y_range is not None:
                 ax.set_ylim(self._y_range)
+            _limit_labeled_ticks(ax)
 
             return AdaptivePlotResult(
                 fig=fig,

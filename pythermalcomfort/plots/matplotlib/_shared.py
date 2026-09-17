@@ -16,6 +16,7 @@ import numpy as np
 from matplotlib import colors as mcolors
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 from matplotlib.transforms import BboxBase
 
 # ── axis helpers ───────────────────────────────────────────────────────────
@@ -79,11 +80,12 @@ class _PlotDefaults:
     """
 
     # ── shared across all plot types ───────────────────────────────────────
-    color_out_of_model: str = "#ececec"
+    color_out_of_model: str = "#C4C9CC"
     parameter_links: MappingProxyType = MappingProxyType({"tr": "tdb", "tdb": "tr"})
     figsize: tuple = (7, 4)
     fill_alpha: float = 1.0
     title_fontsize: int = 13
+    max_labeled_ticks: int = 6
     # When legend and title are both shown, the legend sits just above the axes
     # and the title floats above the legend.
     legend_bbox_to_anchor_with_title: tuple = (0.5, 1.05)
@@ -332,6 +334,14 @@ def _apply_axes_style(ax: Axes) -> None:
     ax.grid(False)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+    _limit_labeled_ticks(ax)
+
+
+def _limit_labeled_ticks(ax: Axes) -> None:
+    """Limit each axis to six major tick labels by default."""
+    # MaxNLocator counts intervals, so five intervals give at most six labels.
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=_PlotDefaults.max_labeled_ticks - 1))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=_PlotDefaults.max_labeled_ticks - 1))
 
 
 # ── internal resolved container ────────────────────────────────────────────
@@ -532,28 +542,41 @@ def _build_region_labels(
 # ── color helpers ──────────────────────────────────────────────────────────
 
 
+_DEFAULT_REGION_COLORS: dict[int, tuple[str, ...]] = {
+    1: ("#F1F3F2",),
+    2: ("#86AEC8", "#D88B7B"),
+    3: ("#86AEC8", "#F1F3F2", "#D88B7B"),
+    4: ("#5F8FA9", "#B7D0DE", "#E7B7AC", "#C66B5E"),
+    5: ("#5F8FA9", "#B7D0DE", "#F1F3F2", "#E7B7AC", "#C66B5E"),
+    6: ("#527F98", "#86AEC8", "#C7DCE6", "#EBCBC3", "#D88B7B", "#B85F55"),
+    7: (
+        "#527F98",
+        "#86AEC8",
+        "#C7DCE6",
+        "#F1F3F2",
+        "#EBCBC3",
+        "#D88B7B",
+        "#B85F55",
+    ),
+}
+
+
 def _default_region_colors(n_regions: int) -> list[str]:
-    """Return default region colors in a cool-neutral-warm progression."""
+    """Return muted default colors from cool blue to warm terracotta.
+
+    Palettes with an odd number of regions place neutral gray in the central
+    band. Even palettes have no true midpoint, so they move directly from
+    pale blue to pale terracotta. Larger palettes interpolate between the
+    seven defined anchors while preserving that order.
+    """
     if n_regions < 1:
         raise ValueError("n_regions must be at least 1.")
-    if n_regions == 1:
-        return ["#008D3D"]
-    if n_regions == 2:
-        return ["#0067B2", "#C40025"]
-    if n_regions == 3:
-        return ["#0067B2", "#E8F0F9", "#C40025"]
+
+    if n_regions in _DEFAULT_REGION_COLORS:
+        return list(_DEFAULT_REGION_COLORS[n_regions])
 
     cmap = mcolors.LinearSegmentedColormap.from_list(
-        "summary_blue_neutral_red",
-        [
-            "#8DA2D8",
-            "#A9D4F5",
-            "#D1EAFA",
-            "#D2E8BF",
-            "#F0BECB",
-            "#DE7B6A",
-            "#A65558",
-        ],
+        "cool_neutral_warm", _DEFAULT_REGION_COLORS[7]
     )
     positions = np.linspace(0.0, 1.0, n_regions)
     return [mcolors.to_hex(cmap(value)) for value in positions]

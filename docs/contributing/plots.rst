@@ -210,7 +210,7 @@ The intended inheritance tree after the planned refactor is:
     ├── AdaptivePlot              (line-based; set_x_axis/set_y_axis simplified)
     └── SummaryPlot               (DataFrame-based; no axis config)
 
-``BasePlot`` provides ``set_regions`` and the abstract ``plot`` stub.
+``BasePlot`` declares ``set_regions`` and ``plot`` as abstract contracts.
 ``GridBasePlot`` provides axis configuration and the model grid evaluation
 pipeline.
 

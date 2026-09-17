@@ -552,8 +552,19 @@ def test_plot_turns_off_a_grid_the_callers_rcparams_switched_on() -> None:
     assert not result.ax.xaxis.get_gridlines()[0].get_visible()
 
 
-def test_out_of_model_limits_colour_is_the_light_grey() -> None:
-    assert OUT_OF_MODEL_LIMITS_COLOR == "#ececec"
+def test_plot_limits_labeled_ticks_to_six_per_axis() -> None:
+    result = _new_plot().plot()
+
+    for axis in (result.ax.xaxis, result.ax.yaxis):
+        min_val, max_val = axis.get_view_interval()
+        visible_ticks = [
+            tick for tick in axis.get_majorticklocs() if min_val <= tick <= max_val
+        ]
+        assert len(visible_ticks) <= 6
+
+
+def test_out_of_model_limits_colour_contrasts_with_comfort_neutral() -> None:
+    assert OUT_OF_MODEL_LIMITS_COLOR == "#C4C9CC"
 
 
 def test_title_clears_a_legend_that_wraps_onto_two_rows() -> None:
