@@ -814,3 +814,22 @@ def test_title_offset_accepts_every_bbox_to_anchor_form() -> None:
     ):
         result = _curve_plot().plot(title="t", legend_kws={"bbox_to_anchor": anchor})
         assert result.ax.title.get_position()[1] == pytest.approx(1.14, abs=1e-6)
+
+
+def test_title_clears_a_legend_anchored_in_figure_coordinates() -> None:
+    # legend_kws reaches ax.legend(), so a caller can anchor the legend in
+    # figure coordinates. The title is positioned in axes coordinates, so the
+    # anchor has to be converted rather than read off raw.
+    fig, ax = plt.subplots()
+    result = _curve_plot().plot(
+        ax=ax,
+        title="t",
+        legend_kws={"bbox_to_anchor": (0.5, 0.95), "bbox_transform": fig.transFigure},
+    )
+    fig.canvas.draw()
+
+    to_axes = ax.transAxes.inverted()
+    legend_top = to_axes.transform(result.legend.get_window_extent().p1)[1]
+    title_bottom = to_axes.transform(ax.title.get_window_extent().p0)[1]
+
+    assert title_bottom >= legend_top

@@ -210,17 +210,29 @@ _PYTHERMALCOMFORT_RC: dict[str, Any] = {
 }
 
 
-def _legend_anchor_y(bbox_to_anchor: Any) -> float:
-    """Read the y coordinate out of any ``bbox_to_anchor`` Matplotlib accepts.
+def _legend_anchor_y(
+    bbox_to_anchor: Any, *, ax: Axes, bbox_transform: Any = None
+) -> float:
+    """Read a ``bbox_to_anchor`` y coordinate, in axes coordinates.
 
-    ``ax.legend`` takes a 2-tuple, a 4-tuple or a ``BboxBase``.  Only the
-    tuples are subscriptable, so a caller passing a ``Bbox`` used to crash
-    here before their legend was ever drawn.
+    ``ax.legend`` takes a 2-tuple, a 4-tuple or a ``BboxBase``, and only the
+    tuples are subscriptable, so a caller passing a ``Bbox`` used to crash here
+    before their legend was ever drawn.
+
+    It also takes a ``bbox_transform``, which says what the anchor is measured
+    in.  A caller anchoring the legend in figure coordinates was getting that
+    raw figure value back, while ``ax.set_title(y=...)`` reads axes
+    coordinates, so the title landed somewhere unrelated to the legend.
 
     Parameters
     ----------
     bbox_to_anchor : BboxBase or tuple
         The anchor as passed to ``ax.legend``.
+    ax : Axes
+        Axis the legend belongs to.
+    bbox_transform : Transform, optional
+        The anchor's coordinate system.  ``None`` means axes coordinates,
+        which is what ``ax.legend`` itself assumes.
 
     Returns
     -------
@@ -228,8 +240,17 @@ def _legend_anchor_y(bbox_to_anchor: Any) -> float:
         The anchor's lower y coordinate, in axes coordinates.
     """
     if isinstance(bbox_to_anchor, BboxBase):
-        return float(bbox_to_anchor.y0)
-    return float(bbox_to_anchor[1])
+        anchor_x, anchor_y = float(bbox_to_anchor.x0), float(bbox_to_anchor.y0)
+    else:
+        anchor_x, anchor_y = float(bbox_to_anchor[0]), float(bbox_to_anchor[1])
+
+    if bbox_transform is None or bbox_transform is ax.transAxes:
+        return anchor_y
+
+    # Round-trip through display coordinates, since a transform need not treat
+    # the two axes independently.
+    display = bbox_transform.transform((anchor_x, anchor_y))
+    return float(ax.transAxes.inverted().transform(display)[1])
 
 
 def _title_y_above_legend(*, n_handles: int, ncol: int, anchor_y: float) -> float:

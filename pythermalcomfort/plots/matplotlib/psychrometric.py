@@ -454,7 +454,12 @@ class PsychrometricPlot(ThresholdPlot):
                 psy_ta_rh(t_dense, np.full_like(t_dense, float(rh_target))).hr
                 * _G_PER_KG
             )
-            in_range = hr_line <= self._y_axis.max_val
+            # Both bounds, not just the top: on an elevated y window the
+            # samples below it still steered where the label went and how wide
+            # a gap it cut, which blanked up to a third of the visible curve.
+            in_range = (hr_line >= self._y_axis.min_val) & (
+                hr_line <= self._y_axis.max_val
+            )
             if not in_range.any():
                 continue
             curve_t = t_dense[in_range]

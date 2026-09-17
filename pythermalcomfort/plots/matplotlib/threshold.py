@@ -425,7 +425,11 @@ class ThresholdPlot(GridBasePlot):
                 title_y = _title_y_above_legend(
                     n_handles=len(handles),
                     ncol=int(legend_opts["ncol"]),
-                    anchor_y=_legend_anchor_y(legend_opts["bbox_to_anchor"]),
+                    anchor_y=_legend_anchor_y(
+                        legend_opts["bbox_to_anchor"],
+                        ax=ax,
+                        bbox_transform=legend_opts.get("bbox_transform"),
+                    ),
                 )
 
             ax.set_xlim(self._x_axis.min_val, self._x_axis.max_val)
