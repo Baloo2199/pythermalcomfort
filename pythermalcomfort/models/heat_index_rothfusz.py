@@ -33,6 +33,7 @@ def heat_index_rothfusz(
         Relative humidity, [%].
     round_output : bool, optional
         If True, rounds output value. If False, it does not round it. Defaults to True.
+        Stress categories are always determined from the unrounded heat index.
     limit_inputs : bool, optional
         If True, limits the inputs to the standard applicability limits. Defaults to True.
 
@@ -80,11 +81,12 @@ def heat_index_rothfusz(
         hi_valid = hi
 
     heat_index_categories = {27.0: "no risk", **HEAT_INDEX_STRESS_CATEGORIES}
+    stress_category = _mapping(hi_valid, heat_index_categories)
 
     if round_output:
         hi_valid = np.around(hi_valid, 1)
 
-    return HI(hi=hi_valid, stress_category=_mapping(hi_valid, heat_index_categories))
+    return HI(hi=hi_valid, stress_category=stress_category)
 
 
 @cast(

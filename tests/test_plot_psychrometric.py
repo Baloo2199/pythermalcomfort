@@ -133,8 +133,16 @@ def test_grid_is_evaluated_as_g_per_kg() -> None:
     actual = plot._evaluate_grid_output(x=tdb, y=hr_g_kg, output_name="pmv")
 
     expected_rh = hr_to_rh(10.0 / 1000.0, 25.0)
+    # Grid evaluation asks for unrounded output, because bisecting a rounded
+    # staircase parks a boundary on the edge of a quantisation plateau.
     expected = pmv_ppd_iso(
-        tdb=25.0, tr=25.0, vr=0.1, rh=float(expected_rh), met=1.2, clo=0.5
+        tdb=25.0,
+        tr=25.0,
+        vr=0.1,
+        rh=float(expected_rh),
+        met=1.2,
+        clo=0.5,
+        round_output=False,
     ).pmv
 
     assert float(actual[0, 0]) == pytest.approx(float(expected), abs=1e-9)
@@ -179,3 +187,40 @@ def test_rh_curves_and_saturation_mask_render_in_g_per_kg() -> None:
     assert mask_y.min() == pytest.approx(expected_saturation_hr, abs=1e-6)
 
     plt.close(result.fig)
+
+
+def test_rh_labels_are_placed_on_the_visible_part_of_each_curve() -> None:
+    """An elevated y window must not size the label gap off hidden samples.
+
+    Masking only ``hr <= max_val`` left the samples below ``min_val`` steering
+    the label position and the gap width, which blanked up to a third of the
+    curve actually on screen.
+    """
+    y_min, y_max = 15.0, 30.0
+    plot = (
+        PsychrometricPlot(pmv_ppd_iso)
+        .set_x_axis("tdb", 10.0, 36.0)
+        .set_y_axis("hr", y_min, y_max)
+        .set_params(vr=0.1, met=1.2, clo=0.5)
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+    result = plot.plot()
+
+    dotted = [
+        line
+        for line in result.ax.get_lines()
+        if line.get_linestyle() in (":", "dotted")
+    ]
+    assert dotted
+
+    for line in dotted:
+        y = line.get_ydata()
+        drawn = np.asarray(y, dtype=float)
+        finite = drawn[np.isfinite(drawn)]
+        assert finite.size
+        # Nothing is plotted outside the window...
+        assert finite.min() >= y_min - 1e-9
+        assert finite.max() <= y_max + 1e-9
+        # ...and the gap cut for the label stays a small share of the curve.
+        blanked = int(np.isnan(drawn).sum())
+        assert blanked / drawn.size < 0.15
