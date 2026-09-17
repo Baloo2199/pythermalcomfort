@@ -4,10 +4,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.collections import PolyCollection
 
 from pythermalcomfort.models import pmv_ppd_iso
 from pythermalcomfort.plots.matplotlib import PsychrometricPlot, ThresholdPlotResult
-from pythermalcomfort.utilities import hr_to_rh
+from pythermalcomfort.psychrometrics import hr_to_rh, psy_ta_rh
 
 
 def _new_plot() -> PsychrometricPlot:
@@ -132,8 +133,94 @@ def test_grid_is_evaluated_as_g_per_kg() -> None:
     actual = plot._evaluate_grid_output(x=tdb, y=hr_g_kg, output_name="pmv")
 
     expected_rh = hr_to_rh(10.0 / 1000.0, 25.0)
+    # Grid evaluation asks for unrounded output, because bisecting a rounded
+    # staircase parks a boundary on the edge of a quantisation plateau.
     expected = pmv_ppd_iso(
-        tdb=25.0, tr=25.0, vr=0.1, rh=float(expected_rh), met=1.2, clo=0.5
+        tdb=25.0,
+        tr=25.0,
+        vr=0.1,
+        rh=float(expected_rh),
+        met=1.2,
+        clo=0.5,
+        round_output=False,
     ).pmv
 
     assert float(actual[0, 0]) == pytest.approx(float(expected), abs=1e-9)
+
+
+def test_rh_curves_and_saturation_mask_render_in_g_per_kg() -> None:
+    """RH iso-lines and the saturation mask must be drawn in g/kg, not kg/kg.
+
+    test_grid_is_evaluated_as_g_per_kg only pins the conversion used to
+    evaluate the model grid. The saturation mask and RH iso-lines are drawn
+    by a separate code path that also calls psy_ta_rh, and could silently
+    regress to kg/kg while that test still passes.
+    """
+    plot = _new_plot()
+    x_min = 20.0
+    plot.set_x_axis("tdb", x_min, 30.0, resolution=5.0)
+    plot.set_y_axis("hr", 0.0, 30.0, resolution=5.0)
+
+    result = plot.plot()
+    ax = result.ax
+
+    expected_50pct_hr = psy_ta_rh(x_min, 50.0).hr * 1000.0
+    dotted_lines = [line for line in ax.lines if line.get_linestyle() == ":"]
+    rh_50_line = next(
+        line
+        for line in dotted_lines
+        if line.get_xdata()[0] == pytest.approx(x_min)
+        and line.get_ydata()[0] == pytest.approx(expected_50pct_hr, abs=1e-6)
+    )
+    # Would be ~0.0076 kg/kg dry air if the conversion regressed.
+    assert rh_50_line.get_ydata()[0] > 1.0
+
+    expected_saturation_hr = psy_ta_rh(x_min, 100.0).hr * 1000.0
+    white_polys = [
+        c
+        for c in ax.collections
+        if isinstance(c, PolyCollection)
+        and np.allclose(np.asarray(c.get_facecolor())[0][:3], 1.0)
+    ]
+    assert white_polys, "expected the saturation mask to be a white PolyCollection"
+    mask_y = white_polys[0].get_paths()[0].vertices[:, 1]
+    assert mask_y.min() == pytest.approx(expected_saturation_hr, abs=1e-6)
+
+    plt.close(result.fig)
+
+
+def test_rh_labels_are_placed_on_the_visible_part_of_each_curve() -> None:
+    """An elevated y window must not size the label gap off hidden samples.
+
+    Masking only ``hr <= max_val`` left the samples below ``min_val`` steering
+    the label position and the gap width, which blanked up to a third of the
+    curve actually on screen.
+    """
+    y_min, y_max = 15.0, 30.0
+    plot = (
+        PsychrometricPlot(pmv_ppd_iso)
+        .set_x_axis("tdb", 10.0, 36.0)
+        .set_y_axis("hr", y_min, y_max)
+        .set_params(vr=0.1, met=1.2, clo=0.5)
+        .set_regions(output="pmv", thresholds=[-0.5, 0.5])
+    )
+    result = plot.plot()
+
+    dotted = [
+        line
+        for line in result.ax.get_lines()
+        if line.get_linestyle() in (":", "dotted")
+    ]
+    assert dotted
+
+    for line in dotted:
+        y = line.get_ydata()
+        drawn = np.asarray(y, dtype=float)
+        finite = drawn[np.isfinite(drawn)]
+        assert finite.size
+        # Nothing is plotted outside the window...
+        assert finite.min() >= y_min - 1e-9
+        assert finite.max() <= y_max + 1e-9
+        # ...and the gap cut for the label stays a small share of the curve.
+        blanked = int(np.isnan(drawn).sum())
+        assert blanked / drawn.size < 0.15

@@ -1,7 +1,8 @@
-"""Field study example: PMV analysis from Cozie wearable data.
+"""Illustrative fixed-air-speed PMV calculation from Cozie wearable data.
 
-Reads a Cozie field-study dataset and computes PMV (ISO 7730) for each observation,
-producing a per-participant distribution of PMV comfort category.
+Reads a Cozie field-study dataset and computes PMV (ISO 7730) for each retained
+observation at an assumed air speed of 0.1 m/s. The resulting per-participant
+distribution illustrates PMV categories; it is not a comfort-validation analysis.
 
 Usage
 -----
@@ -23,11 +24,14 @@ from pythermalcomfort.models import pmv_ppd_iso
 MET_MAP = {"sitting": 1.1, "resting": 0.8, "standing": 1.4, "exercising": 3.0}
 CLO_MAP = {"Very light": 0.3, "Light": 0.5, "Medium": 0.7, "Heavy": 1.0}
 
-AIR_SPEED_MIN = 0.1  # m/s
-AIR_SPEED_MAX = 1  # m/s
+AIR_SPEED = 0.1  # m/s, fixed illustrative assumption
 
-# PMV comfort categories
-PMV_LABELS = ["Cool (PMV < -0.5)", "Comfortable", "Warm (PMV > 0.5)"]
+# PMV numerical categories for the fixed-air-speed calculation.
+PMV_LABELS = [
+    "PMV < -0.5",
+    "-0.5 ≤ PMV ≤ 0.5",
+    "PMV > 0.5",
+]
 PMV_COLORS = ["#74add1", "#abdda4", "#f46d43"]
 
 # ---------------------------------------------------------------------------
@@ -45,10 +49,9 @@ df["clothing"] = df["clothing"].map(CLO_MAP)
 df_pmv = df.dropna(subset=["t-env", "rh-env", "met", "clothing"]).copy()
 
 # ---------------------------------------------------------------------------
-# PMV (vectorised) -- range-based classification
-# Too cool : PMV < -0.5 at vr = 0.1 m/s
-# Too warm : PMV >  0.5 at vr = 1.0 m/s (elevated air movement still too warm)
-# Comfortable: everything in between
+# PMV (vectorised) at the fixed illustrative air speed of 0.1 m/s.
+# This calculation illustrates model categories and does not validate comfort
+# against participant-reported outcomes.
 # ---------------------------------------------------------------------------
 _common = dict(
     tdb=df_pmv["t-env"].values,
@@ -59,14 +62,11 @@ _common = dict(
     model="7730-2005",
     limit_inputs=False,
 )
-pmv_low = np.array(pmv_ppd_iso(vr=AIR_SPEED_MIN, **_common).pmv, dtype=float)
-pmv_high = np.array(pmv_ppd_iso(vr=AIR_SPEED_MAX, **_common).pmv, dtype=float)
-
-df_pmv["pmv"] = pmv_low  # reference column (vr = 0.1)
-df_pmv["pmv_cat"] = np.where(
-    pmv_low < -0.5,
-    PMV_LABELS[0],
-    np.where(pmv_high > 0.5, PMV_LABELS[2], PMV_LABELS[1]),
+df_pmv["pmv"] = np.array(pmv_ppd_iso(vr=AIR_SPEED, **_common).pmv, dtype=float)
+df_pmv["pmv_cat"] = np.select(
+    [df_pmv["pmv"] < -0.5, df_pmv["pmv"] <= 0.5],
+    [PMV_LABELS[0], PMV_LABELS[1]],
+    default=PMV_LABELS[2],
 )
 df_pmv["pmv_cat"] = pd.Categorical(df_pmv["pmv_cat"], categories=PMV_LABELS)
 
@@ -96,7 +96,7 @@ pct_pmv = participant_pct(df_pmv, "pmv_cat", PMV_LABELS)
 # ---------------------------------------------------------------------------
 # Figure: single stacked bar chart
 # ---------------------------------------------------------------------------
-fig, ax = plt.subplots(figsize=(8, 3.2))
+fig, ax = plt.subplots(figsize=(7, 3.2))
 
 x = np.arange(len(PARTICIPANTS))
 x_labels = [f"P{p}" for p in PARTICIPANTS]
@@ -127,9 +127,9 @@ for j, (label, color) in enumerate(zip(PMV_LABELS, PMV_COLORS, strict=True)):
     bottom += vals
 
 ax.set_ylim(0, 100)
-ax.set_ylabel("Time (%)")
+ax.set_ylabel("Observations (%)")
 ax.set_title(
-    f"PMV (ISO 7730) - air speed {AIR_SPEED_MIN} to {AIR_SPEED_MAX} m/s",
+    "PMV categories (ISO 7730; assumed air speed 0.1 m/s)",
     fontsize=10,
     y=1.15,
 )

@@ -296,13 +296,14 @@ def plot_condition(ax: plt.Axes, condition: TransientCondition) -> None:
 
 def build_figure(conditions: tuple[TransientCondition, ...]) -> plt.Figure:
     """Build the two-panel hot/cold transient validation figure."""
-    fig, axes = plt.subplots(1, len(conditions), figsize=(9, 4), sharey=True)
+    fig, axes = plt.subplots(1, len(conditions), figsize=(7, 4), sharey=True)
     for ax, condition in zip(axes, conditions, strict=True):
         plot_condition(ax, condition)
 
     axes[0].set_ylabel("Rectal and mean skin temperature [°C]")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.tight_layout(rect=(0, 0, 1, 0.92))
+    fig.subplots_adjust(wspace=0.08)
     fig.legend(
         handles,
         labels,

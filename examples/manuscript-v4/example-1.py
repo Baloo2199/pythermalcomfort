@@ -7,8 +7,6 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.collections import QuadMesh
-from matplotlib.contour import QuadContourSet
 
 from pythermalcomfort.models import heat_index_lu, pmv_ppd_iso, utci
 from pythermalcomfort.plots.matplotlib import (
@@ -16,25 +14,11 @@ from pythermalcomfort.plots.matplotlib import (
     SummaryPlot,
     ThresholdPlot,
 )
-from pythermalcomfort.utilities import psy_ta_rh
+from pythermalcomfort.psychrometrics import psy_ta_rh
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTDIR = os.path.join(SCRIPT_DIR, "output")
 os.makedirs(OUTDIR, exist_ok=True)
-
-
-def _rasterize_fills(ax):
-    """Rasterize the contourf/pcolormesh region fills.
-
-    Matplotlib's PDF backend draws a hairline seam between adjacent
-    same-color quads in vector output, visible as a faint grid over the
-    filled regions (most obvious on the flat gray "out of model limits"
-    area). Rasterizing those artists avoids the seam; everything else
-    (boundary lines, legend, text) stays vector.
-    """
-    for coll in ax.collections:
-        if isinstance(coll, (QuadContourSet, QuadMesh)):
-            coll.set_rasterized(True)
 
 
 RNG = np.random.default_rng(42)
@@ -76,7 +60,8 @@ fig, axes = plt.subplots(
     )
     .plot(ax=axes[0], legend_kws=legend_kws)
 )
-axes[0].set(ylabel="Relative humidity (%)", xlabel=r"Dry-bulb temperature ($^\circ$C)")
+axes[0].set_ylabel("Relative humidity (%)")
+axes[0].set_xlabel("")
 axes[0].set_title("PMV (ISO 7730)", y=Y_TITLE_OFFSET)
 
 legend_kws.update({"ncol": 2})
@@ -102,11 +87,13 @@ legend_kws.update({"ncol": 2})
     )
     .plot(ax=axes[1], legend_kws=legend_kws)
 )
-axes[1].set(ylabel="Relative humidity (%)", xlabel=r"Dry-bulb temperature ($^\circ$C)")
+axes[1].set_ylabel("Relative humidity (%)")
+axes[1].set_xlabel("")
 axes[1].set_title("UTCI", y=Y_TITLE_OFFSET + 0.15)
 
 # Panel C -- Heat Index (Lu and Romps 2022)
 # heat_index_lu only requires tdb and rh; no set_params needed.
+# Standard Heat Index intervals: 27, 32, 41 (degrees Celsius)
 (
     ThresholdPlot(heat_index_lu)
     .set_x_axis("tdb", T_MIN, T_MAX, resolution=RESOLUTION_T)
@@ -115,10 +102,10 @@ axes[1].set_title("UTCI", y=Y_TITLE_OFFSET + 0.15)
         output="hi",
         thresholds=[27, 32, 41],
         labels=[
-            r"Caution (HI<27$^\circ$C)",
-            "Extreme caution",
-            "Danger",
-            r"Extreme danger (HI>41$^\circ$C)",
+            r"No risk (HI<27$^\circ$C)",
+            r"Caution (27≤HI<32$^\circ$C)",
+            r"Extreme caution (32≤HI<41$^\circ$C)",
+            r"Danger (HI≥41$^\circ$C)",
         ],
         colors=[C_NEUTRAL, C_CAUTION, C_STRONG, C_EXTREME],
     )
@@ -130,7 +117,6 @@ axes[2].set_title("Heat Index", y=Y_TITLE_OFFSET + 0.15)
 
 for ax in axes:
     ax.grid(False)
-    _rasterize_fills(ax)
 
 fig.savefig(os.path.join(OUTDIR, "example_1.pdf"), bbox_inches="tight", dpi=300)
 plt.show()
@@ -190,7 +176,6 @@ ax_psy.set_xlabel(r"Dry-bulb temperature ($^\circ$C)")
 ax_psy.grid(False)
 ax_psy.spines["top"].set_visible(False)
 ax_psy.spines["right"].set_visible(False)
-_rasterize_fills(ax_psy)
 # The y-label is supplied by PsychrometricPlot itself and is already in g/kg.
 
 # Overlay scatter measurements. psy_ta_rh returns humidity ratio in kg/kg dry

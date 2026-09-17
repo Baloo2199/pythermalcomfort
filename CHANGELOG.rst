@@ -4,6 +4,166 @@ Changelog
 Unreleased
 ----------
 
+4.6.0 (2026-09-17)
+------------------
+
+* Standardized the default plot palette: cooler regions progress from pale to muted
+  blue, warmer regions from pale to muted terracotta, and a true central comfort
+  region uses neutral gray. Out-of-model-limit areas use a contrasting neutral gray,
+  and plots limit each axis to six major tick labels by default.
+* Added an annual PMV heatmap-and-summary Matplotlib recipe to the plotting examples.
+* Deprecated the following legacy public import paths. They continue to work for two
+  minor releases and emit ``DeprecationWarning`` pointing to their new locations;
+  this is not an immediate breaking change.
+
+  * Environment calculations:
+
+    * ``pythermalcomfort.utilities.mean_radiant_tmp`` →
+      ``pythermalcomfort.environment.mean_radiant_tmp``
+    * ``pythermalcomfort.utilities.operative_tmp`` →
+      ``pythermalcomfort.environment.operative_tmp``
+    * ``pythermalcomfort.utilities.running_mean_outdoor_temperature`` →
+      ``pythermalcomfort.environment.running_mean_outdoor_temperature``
+    * ``pythermalcomfort.utilities.transpose_sharp_altitude`` →
+      ``pythermalcomfort.environment.transpose_sharp_altitude``
+    * ``pythermalcomfort.utilities.f_svv`` →
+      ``pythermalcomfort.environment.f_svv``
+    * ``pythermalcomfort.utilities.v_relative`` →
+      ``pythermalcomfort.environment.v_relative``
+    * ``pythermalcomfort.utils.scale_wind_speed_log`` →
+      ``pythermalcomfort.environment.scale_wind_speed_log``
+
+  * Psychrometric calculations:
+
+    * ``pythermalcomfort.utilities.p_sat`` →
+      ``pythermalcomfort.psychrometrics.p_sat``
+    * ``pythermalcomfort.utilities.p_sat_torr`` →
+      ``pythermalcomfort.psychrometrics.p_sat_torr``
+    * ``pythermalcomfort.utilities.antoine`` →
+      ``pythermalcomfort.psychrometrics.antoine``
+    * ``pythermalcomfort.utilities.psy_ta_rh`` →
+      ``pythermalcomfort.psychrometrics.psy_ta_rh``
+    * ``pythermalcomfort.utilities.hr_to_rh`` →
+      ``pythermalcomfort.psychrometrics.hr_to_rh``
+    * ``pythermalcomfort.utilities.wet_bulb_tmp`` →
+      ``pythermalcomfort.psychrometrics.wet_bulb_tmp``
+    * ``pythermalcomfort.utilities.dew_point_tmp`` →
+      ``pythermalcomfort.psychrometrics.dew_point_tmp``
+    * ``pythermalcomfort.utilities.enthalpy_air`` →
+      ``pythermalcomfort.psychrometrics.enthalpy_air``
+
+  * Clothing calculations:
+
+    * ``pythermalcomfort.utilities.clo_dynamic_ashrae`` →
+      ``pythermalcomfort.clothing.clo_dynamic_ashrae``
+    * ``pythermalcomfort.utilities.clo_dynamic_iso`` →
+      ``pythermalcomfort.clothing.clo_dynamic_iso``
+    * ``pythermalcomfort.utilities.clo_intrinsic_insulation_ensemble`` →
+      ``pythermalcomfort.clothing.clo_intrinsic_insulation_ensemble``
+    * ``pythermalcomfort.utilities.clo_area_factor`` →
+      ``pythermalcomfort.clothing.clo_area_factor``
+    * ``pythermalcomfort.utilities.clo_insulation_air_layer`` →
+      ``pythermalcomfort.clothing.clo_insulation_air_layer``
+    * ``pythermalcomfort.utilities.clo_total_insulation`` →
+      ``pythermalcomfort.clothing.clo_total_insulation``
+    * ``pythermalcomfort.utilities.clo_correction_factor_environment`` →
+      ``pythermalcomfort.clothing.clo_correction_factor_environment``
+
+* Moved internal-only ``valid_range`` and ``mapping`` from
+  ``pythermalcomfort.shared_functions`` to
+  ``pythermalcomfort._internal.validation`` as ``_valid_range`` and ``_mapping``.
+  These private helpers were never public API, so no compatibility aliases are
+  provided.
+* Fixed ``validate_type`` so NumPy scalar inputs are returned as native Python
+  scalars, and updated input dataclasses to store those normalized values.
+* **Breaking (plots only):** ``ThresholdPlot`` (and therefore
+  ``PsychrometricPlot``) now finds region boundaries by root-finding instead of
+  contouring a raster grid. For every row of the plot it bisects to the exact
+  place where the output crosses a threshold, and where the model leaves its
+  applicability limits, then fills between the resulting curves. Region edges
+  and the out-of-model-limits area follow smooth curves rather than grid steps.
+  Where a boundary lies no longer depends on ``resolution`` at all; sampling
+  only decides whether a feature is *found*, so a model that turns sharply
+  enough to hide a crossing between two samples still needs a finer setting.
+  Charts where
+  several limits clip each other -- ``pmv_ppd_iso``, whose PMV, dry-bulb and
+  vapour-pressure limits used to leave a staircase of grey squares -- benefit
+  most.
+
+  A threshold may be crossed more than once along a row, and each crossing gets
+  its own curve. ``ppd`` is the usual case: it falls to a minimum at neutrality
+  and rises again, so "PPD below 10" is a strip with "above 10" on both sides.
+  Such a chart used to be drawn on the raster path and came out jagged; it is
+  now solved like any other.
+
+  The boundaries come back as coordinate arrays in ``result.boundaries``, one
+  ``BoundaryCurve`` per threshold per branch, with ``.threshold``, ``.branch``,
+  ``.x`` and ``.y``, so they can be re-used, exported or re-styled directly.
+
+  **The contour backend is gone**, along with ``plot()``'s ``backend`` argument
+  and ``result.backend``. Geometry that cannot be laid out the same way in
+  every row -- an internal hole in the model's valid area, or a pair of
+  crossings that only appears partway up the chart -- now raises ``ValueError``
+  rather than silently falling back to a grid-stepped rendering. Narrowing the
+  axis ranges to where the model is well behaved is usually the fix;
+  ``utci()``, for instance, needs ``tdb`` capped near 42 degC before its
+  polynomial stops diverging (see #410).
+
+  ``result.fills`` is consequently a list of one ``fill_between`` polygon per
+  band rather than a single ``ContourSet``, and ``fill_kws`` reaches
+  ``ax.fill_between`` rather than ``ax.contourf``. Code testing
+  ``isinstance(artist, QuadContourSet)`` no longer matches.
+
+* ``resolution`` is now optional on ``set_x_axis`` and ``set_y_axis``. It never
+  set the precision of a boundary -- bisection does -- so it only matters for a
+  model that turns sharply enough to step over a feature between samples. Both
+  axes have sampling floors, so omitting it gives a chart that is already
+  smooth.
+
+* Threshold boundary lines are now hidden by default (``show_lines=True``
+  brings them back): the region fills meet exactly on the boundary, so the
+  colour change already marks it and the extra line mostly added weight. The
+  out-of-model-limits shading is a light neutral gray (``#C4C9CC``).
+  The grid and the top and right spines are now set on the axis rather than
+  through ``rc_context``, which fixes charts drawn on a caller-supplied ``ax``
+  keeping whatever frame and grid the caller's ``rcParams`` gave them --
+  multi-panel figures were previously styled inconsistently. Call
+  ``result.ax.grid(True)`` to put the grid back.
+
+* Threshold and psychrometric charts evaluate their model with
+  ``round_output=False``. Models round for display -- ``pmv_ppd_iso`` to 0.01
+  PMV -- which turns the output into a staircase, and bisecting
+  ``output >= threshold`` on a staircase parks the boundary on the edge of a
+  quantisation plateau instead of the real crossing: about 0.03 degC of
+  dry-bulb at a typical PMV slope. Setting ``round_output`` through
+  ``set_params`` still overrides this.
+
+* Threshold and psychrometric charts no longer relay the models'
+  out-of-applicability-limits warnings. Sweeping across those limits is how the
+  chart finds the out-of-model-limits area, so the warning fired on every grid
+  evaluation and said nothing the chart was not about to shade -- one
+  129-point sweep of ``pmv_ppd_iso`` raises two warnings of about 500
+  characters each, and a notebook full of charts drowned in them. Calling a
+  model directly still warns exactly as before, and only that one message is
+  filtered -- warnings reporting a calculation going wrong, such as
+  ``cooling_effect``'s solver returning zero, still reach the caller.
+
+* A chart title now sits above however many rows its legend needs, instead of
+  at a fixed height: a five-region chart wrapped its legend onto two rows and
+  the title landed in the middle of it. The fixed height was marginally too low
+  even for a one-row legend, so titles were always very slightly clipped.
+
+* ``PsychrometricPlot`` writes each constant-RH label on its curve, rotated to
+  follow it and set in a gap left in the curve, rather than parking it at the
+  curve's end. The curves fan out, and a label beside the bundle is easy to
+  read against the wrong line.
+
+* Fixed ``heat_index_rothfusz`` and ``heat_index_schoen`` classifying heat stress
+  from the rounded heat index. Categories now use the unrounded SI value, so
+  ``round_output`` only affects the returned numeric heat index (#381).
+* Sped up ``two_nodes_gagge_ji`` by compiling its per-simulation time loop with
+  Numba and parallelizing independent array inputs.
+
 4.5.0 (2026-09-15)
 ------------------
 

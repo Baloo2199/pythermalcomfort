@@ -110,6 +110,21 @@ def test_set_y_axis_returns_self_for_chaining() -> None:
     assert plot.set_y_axis(16.0, 34.0) is plot
 
 
+def test_plot_limits_labeled_ticks_to_six_per_axis() -> None:
+    result = (
+        AdaptivePlot(model_func=adaptive_ashrae)
+        .set_y_axis(min_val=16.0, max_val=34.0)
+        .plot()
+    )
+
+    for axis in (result.ax.xaxis, result.ax.yaxis):
+        min_val, max_val = axis.get_view_interval()
+        visible_ticks = [
+            tick for tick in axis.get_majorticklocs() if min_val <= tick <= max_val
+        ]
+        assert len(visible_ticks) <= 6
+
+
 # ── set_params ─────────────────────────────────────────────────────────────
 
 

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import inspect
-from collections.abc import Mapping, Sequence
+import math
+import warnings
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from numbers import Number
 from types import MappingProxyType
@@ -13,6 +16,8 @@ import numpy as np
 from matplotlib import colors as mcolors
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
+from matplotlib.transforms import BboxBase
 
 # ── axis helpers ───────────────────────────────────────────────────────────
 
@@ -24,7 +29,7 @@ class _AxisConfig:
     name: str
     min_val: float
     max_val: float
-    resolution: float
+    resolution: float | None
 
 
 def _parse_axis_range(min_val: Any, max_val: Any) -> tuple[float, float]:
@@ -75,20 +80,44 @@ class _PlotDefaults:
     """
 
     # ── shared across all plot types ───────────────────────────────────────
-    color_out_of_model: str = "#bdbdbd"
+    color_out_of_model: str = "#C4C9CC"
     parameter_links: MappingProxyType = MappingProxyType({"tr": "tdb", "tdb": "tr"})
     figsize: tuple = (7, 4)
     fill_alpha: float = 1.0
     title_fontsize: int = 13
+    max_labeled_ticks: int = 6
     # When legend and title are both shown, the legend sits just above the axes
     # and the title floats above the legend.
     legend_bbox_to_anchor_with_title: tuple = (0.5, 1.05)
     title_y_with_legend: float = 1.15
+    #: Height of one legend row in axes coordinates.  A title sitting above a
+    #: legend has to clear every row, so the offset is per-row rather than
+    #: fixed: a five-region chart wraps its legend onto two rows and the old
+    #: fixed offset put the title straight through it.  Measured rather than
+    #: guessed -- 0.10 left the title overlapping the legend by 0.015 even at
+    #: one row, so titles were always very slightly clipped.  Deliberately a
+    #: fixed model rather than measuring the drawn legend: callers who apply
+    #: ``constrained_layout`` or ``tight_layout`` afterwards move everything,
+    #: which would leave a measured position stale.  0.12 is the smallest
+    #: value that clears the legend at both one and two rows with a little
+    #: margin; 0.115 just clears it, and 0.10 overlapped even at one row.
+    title_legend_row_height: float = 0.12
 
     class Threshold:
         """Defaults specific to :class:`ThresholdPlot`."""
 
         fill_corner_mask: bool = False
+        # Rows and scan samples used when solving boundaries.  The scan samples
+        # only have to separate one crossing from the next -- bisection
+        # supplies the precision -- while the rows set how finely the boundary
+        # curves themselves are sampled.
+        curve_min_rows: int = 200
+        # Doubled from 65: the scan spacing sets the smallest feature the
+        # solver can see, so a finer floor halves the width of an invalid
+        # pocket or a close pair of crossings that could slip between samples.
+        # Costs ~20% on pmv_ppd_iso and ~50% on set_tmp, both still well under
+        # a third of a second.
+        curve_min_scan_samples: int = 129
         line_color: str = "black"
         line_linewidth: float = 1.0
         legend_loc: str = "lower center"
@@ -120,7 +149,19 @@ class _PlotDefaults:
         rh_line_color: str = "#a0a0a0"
         rh_line_linewidth: float = 0.8
         rh_label_fontsize: int = 8
-        rh_label_offset_fraction: float = 0.01
+        #: Labels are darker than their curves: the line can be faint because
+        #: it is background, but the text has to be read.
+        rh_label_color: str = "#6b6b6b"
+        #: Half-width of the gap left for the label, as a fraction of the
+        #: curve's *visible* length.  A fixed sample count would blank most of
+        #: a short curve: on a sub-1 g/kg chart -- legitimate for cold air --
+        #: the 100 % curve keeps only ~49 of its 500 samples, and 11 samples
+        #: either side of the label erased almost half of it.
+        rh_label_gap_fraction: float = 0.023
+        #: Where along each visible RH curve its label sits, as a fraction of
+        #: the curve's in-range span.  Just short of the end keeps the label
+        #: inside the axes while staying out of the busy lower-left corner.
+        rh_label_position: float = 0.93
         rh_curve_step: int = 10
         zorder_rh_mask: float = 1.6
         zorder_rh_lines: float = 2.0
@@ -169,6 +210,139 @@ _PYTHERMALCOMFORT_RC: dict[str, Any] = {
     "grid.linewidth": 0.5,
     "grid.alpha": 0.7,
 }
+
+
+def _legend_anchor_y(
+    bbox_to_anchor: Any, *, ax: Axes, bbox_transform: Any = None
+) -> float:
+    """Read a ``bbox_to_anchor`` y coordinate, in axes coordinates.
+
+    ``ax.legend`` takes a 2-tuple, a 4-tuple or a ``BboxBase``, and only the
+    tuples are subscriptable, so a caller passing a ``Bbox`` used to crash here
+    before their legend was ever drawn.
+
+    It also takes a ``bbox_transform``, which says what the anchor is measured
+    in.  A caller anchoring the legend in figure coordinates was getting that
+    raw figure value back, while ``ax.set_title(y=...)`` reads axes
+    coordinates, so the title landed somewhere unrelated to the legend.
+
+    Parameters
+    ----------
+    bbox_to_anchor : BboxBase or tuple
+        The anchor as passed to ``ax.legend``.
+    ax : Axes
+        Axis the legend belongs to.
+    bbox_transform : Transform, optional
+        The anchor's coordinate system.  ``None`` means axes coordinates,
+        which is what ``ax.legend`` itself assumes.
+
+    Returns
+    -------
+    float
+        The anchor's lower y coordinate, in axes coordinates.
+    """
+    if isinstance(bbox_to_anchor, BboxBase):
+        anchor_x, anchor_y = float(bbox_to_anchor.x0), float(bbox_to_anchor.y0)
+    else:
+        anchor_x, anchor_y = float(bbox_to_anchor[0]), float(bbox_to_anchor[1])
+
+    if bbox_transform is None or bbox_transform is ax.transAxes:
+        return anchor_y
+
+    # Round-trip through display coordinates, since a transform need not treat
+    # the two axes independently.
+    display = bbox_transform.transform((anchor_x, anchor_y))
+    return float(ax.transAxes.inverted().transform(display)[1])
+
+
+def _title_y_above_legend(*, n_handles: int, ncol: int, anchor_y: float) -> float:
+    """Return a title ``y`` that clears a legend of ``n_handles`` entries.
+
+    The legend grows upward from ``anchor_y``, one row at a time, so a title
+    pinned at a fixed height runs through it as soon as the entries wrap onto
+    a second row.
+
+    Parameters
+    ----------
+    n_handles : int
+        Number of legend entries.
+    ncol : int
+        Number of legend columns.
+    anchor_y : float
+        The legend's ``bbox_to_anchor`` y, in axes coordinates.
+
+    Returns
+    -------
+    float
+        Title ``y`` in axes coordinates.
+    """
+    rows = max(1, math.ceil(n_handles / max(1, ncol)))
+    return anchor_y + rows * _PlotDefaults.title_legend_row_height
+
+
+#: Matches only warnings raised when a model input is outside its applicability
+#: limits. Anchored loosely because the message opens with the parameter name
+#: and the offending values, which vary.
+_APPLICABILITY_WARNING = r".*outside the applicability limits"
+
+
+@contextlib.contextmanager
+def _suppress_applicability_warnings() -> Iterator[None]:
+    """Silence the models' out-of-applicability-limits warnings.
+
+    Every model warns, at length, when an input falls outside the limits its
+    standard defines.  That is the right default for someone calling a model
+    directly, but a threshold chart deliberately sweeps across those limits --
+    finding where they fall is how it draws the out-of-model-limits area -- so
+    the warning fires on every evaluation and says nothing the chart is not
+    about to show.  One 129-point sweep of ``pmv_ppd_iso`` raises two warnings
+    of about 500 characters each; a notebook full of charts drowns in them.
+
+    Only that one message is filtered.  Models raise other warnings of the same
+    category that report a calculation going wrong rather than an input being
+    out of range -- ``cooling_effect`` when its solver returns zero,
+    ``sports_heat_stress_risk`` when an internal solver falls back -- and a
+    chart must not swallow those.
+
+    The information is not lost either: out-of-limits areas are shaded and
+    carry their own legend entry.  Call the model directly to see the warnings.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message=_APPLICABILITY_WARNING, category=UserWarning
+        )
+        yield
+
+
+def _apply_axes_style(ax: Axes) -> None:
+    """Apply the package's axes styling to *ax* directly.
+
+    ``_PYTHERMALCOMFORT_RC`` is an ``rc_context``, so its settings only reach
+    axes that are *created* inside it.  An axes the caller made earlier keeps
+    its own frame and grid, which leaves a multi-panel figure styled
+    inconsistently -- panels drawn on caller-supplied axes get a full box,
+    panels drawn on axes the plot created do not.  Setting the same properties
+    on the axes closes that gap.
+
+    Callers who want the grid back can call ``result.ax.grid(True)``.
+
+    Parameters
+    ----------
+    ax : Axes
+        Axis to style in place.
+    """
+    ax.grid(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    _limit_labeled_ticks(ax)
+
+
+def _limit_labeled_ticks(ax: Axes) -> None:
+    """Limit each axis to six major tick labels by default."""
+    # MaxNLocator counts intervals, so five intervals give at most six labels.
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=_PlotDefaults.max_labeled_ticks - 1))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=_PlotDefaults.max_labeled_ticks - 1))
+
 
 # ── internal resolved container ────────────────────────────────────────────
 
@@ -368,28 +542,41 @@ def _build_region_labels(
 # ── color helpers ──────────────────────────────────────────────────────────
 
 
+_DEFAULT_REGION_COLORS: dict[int, tuple[str, ...]] = {
+    1: ("#F1F3F2",),
+    2: ("#86AEC8", "#D88B7B"),
+    3: ("#86AEC8", "#F1F3F2", "#D88B7B"),
+    4: ("#5F8FA9", "#B7D0DE", "#E7B7AC", "#C66B5E"),
+    5: ("#5F8FA9", "#B7D0DE", "#F1F3F2", "#E7B7AC", "#C66B5E"),
+    6: ("#527F98", "#86AEC8", "#C7DCE6", "#EBCBC3", "#D88B7B", "#B85F55"),
+    7: (
+        "#527F98",
+        "#86AEC8",
+        "#C7DCE6",
+        "#F1F3F2",
+        "#EBCBC3",
+        "#D88B7B",
+        "#B85F55",
+    ),
+}
+
+
 def _default_region_colors(n_regions: int) -> list[str]:
-    """Return default region colors in a cool-neutral-warm progression."""
+    """Return muted default colors from cool blue to warm terracotta.
+
+    Palettes with an odd number of regions place neutral gray in the central
+    band. Even palettes have no true midpoint, so they move directly from
+    pale blue to pale terracotta. Larger palettes interpolate between the
+    seven defined anchors while preserving that order.
+    """
     if n_regions < 1:
         raise ValueError("n_regions must be at least 1.")
-    if n_regions == 1:
-        return ["#008D3D"]
-    if n_regions == 2:
-        return ["#0067B2", "#C40025"]
-    if n_regions == 3:
-        return ["#A3D1FF", "#A8E6CF", "#FFB7B2"]
+
+    if n_regions in _DEFAULT_REGION_COLORS:
+        return list(_DEFAULT_REGION_COLORS[n_regions])
 
     cmap = mcolors.LinearSegmentedColormap.from_list(
-        "summary_blue_neutral_red",
-        [
-            "#8DA2D8",
-            "#A9D4F5",
-            "#D1EAFA",
-            "#D2E8BF",
-            "#F0BECB",
-            "#DE7B6A",
-            "#A65558",
-        ],
+        "cool_neutral_warm", _DEFAULT_REGION_COLORS[7]
     )
     positions = np.linspace(0.0, 1.0, n_regions)
     return [mcolors.to_hex(cmap(value)) for value in positions]

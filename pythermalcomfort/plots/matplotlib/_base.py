@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
+else:
+    Self = Any
 
 import numpy as np
 from matplotlib.axes import Axes
@@ -18,6 +23,7 @@ from pythermalcomfort.plots.matplotlib._shared import (
     _inspect_model_signature,
     _parse_axis_range,
     _PlotDefaults,
+    _suppress_applicability_warnings,
     _validate_model_kwargs,
     _validate_resolution,
 )
@@ -26,15 +32,23 @@ from pythermalcomfort.plots.matplotlib._shared import (
 class BasePlot(ABC):
     """Abstract base for all pythermalcomfort Matplotlib plot classes.
 
-    Enforces the :meth:`plot` contract via :func:`~abc.abstractmethod`.
-    Each concrete subclass owns its own :meth:`set_regions` with a signature
-    appropriate to its domain.
+    Enforces the :meth:`set_regions` and :meth:`plot` contracts via
+    :func:`~abc.abstractmethod`. Each concrete subclass owns its own
+    :meth:`set_regions` signature, appropriate to its domain.
 
     Subclasses must implement :meth:`plot`.
     """
 
     def __init__(self) -> None:
         self._region_config: RegionConfig | None = None
+
+    @abstractmethod
+    def set_regions(self, *args: Any, **kwargs: Any) -> Self:
+        """Configure the plot regions and return self.
+
+        Concrete plot families define their own parameters: grid and summary
+        plots use numeric thresholds, while adaptive plots select named bands.
+        """
 
     @abstractmethod
     def plot(
@@ -109,7 +123,7 @@ class GridBasePlot(BasePlot):
         min_val: Any,
         max_val: Any,
         resolution: Any,
-    ) -> GridBasePlot:
+    ) -> Self:
         """Validate and set one axis configuration."""
         if not isinstance(name, str):
             raise TypeError("Axis name must be a string.")
@@ -136,7 +150,9 @@ class GridBasePlot(BasePlot):
             raise ValueError(msg)
 
         min_float, max_float = _parse_axis_range(min_val, max_val)
-        resolution_float = _validate_resolution(resolution)
+        resolution_float = (
+            None if resolution is None else _validate_resolution(resolution)
+        )
         axis_config = _AxisConfig(
             name=axis_name,
             min_val=min_float,
@@ -154,8 +170,8 @@ class GridBasePlot(BasePlot):
         min_val: float,
         max_val: float,
         *,
-        resolution: float,
-    ) -> GridBasePlot:
+        resolution: float | None = None,
+    ) -> Self:
         """Set x-axis model parameter, range, and grid resolution.
 
         Parameters
@@ -166,8 +182,13 @@ class GridBasePlot(BasePlot):
             Minimum x-axis value.
         max_val : float
             Maximum x-axis value.
-        resolution : float
-            Grid step along x-axis used for contour evaluation.
+        resolution : float, optional
+            Sampling step along the x-axis.  Boundaries are solved by
+            bisection, so this does not set their precision and can usually be
+            left out: it only has to be fine enough to separate one threshold
+            crossing from the next, and a floor applies either way.  Pass a
+            value to sample more finely than the floor, for a model whose
+            output turns sharply.
 
         Returns
         -------
@@ -196,8 +217,8 @@ class GridBasePlot(BasePlot):
         min_val: float,
         max_val: float,
         *,
-        resolution: float,
-    ) -> GridBasePlot:
+        resolution: float | None = None,
+    ) -> Self:
         """Set y-axis model parameter, range, and grid resolution.
 
         Parameters
@@ -208,8 +229,13 @@ class GridBasePlot(BasePlot):
             Minimum y-axis value.
         max_val : float
             Maximum y-axis value.
-        resolution : float
-            Grid step along y-axis used for contour evaluation.
+        resolution : float, optional
+            Sampling step along the y-axis.  Boundaries are solved by
+            bisection, so this does not set their precision and can usually be
+            left out: it only has to be fine enough to separate one threshold
+            crossing from the next, and a floor applies either way.  Pass a
+            value to sample more finely than the floor, for a model whose
+            output turns sharply.
 
         Returns
         -------
@@ -232,7 +258,7 @@ class GridBasePlot(BasePlot):
             resolution=resolution,
         )
 
-    def set_params(self, **kwargs: Any) -> GridBasePlot:
+    def set_params(self, **kwargs: Any) -> Self:
         """Set fixed model parameters used during grid evaluation.
 
         Parameters
@@ -304,11 +330,42 @@ class GridBasePlot(BasePlot):
                 "Use set_regions(..., colors=...) to control region colors."
             )
 
+    def _prefer_unrounded_output(self, call_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Ask the model for unrounded output when it supports it.
+
+        Models round their results for display -- ``pmv_ppd_iso`` to 0.01 PMV
+        and 0.1 PPD -- which turns the output into a staircase.  Bisecting
+        ``output >= threshold`` on a staircase converges to the edge of a
+        quantisation plateau rather than the real crossing, so a boundary can
+        sit a whole step away from where it belongs: 0.01 PMV is about 0.03
+        degC of dry-bulb at a typical slope, which is visible on a chart.
+
+        An explicit ``round_output`` in :meth:`set_params` is left alone, so a
+        caller who wants to see the quantisation still can.
+
+        Parameters
+        ----------
+        call_kwargs : dict
+            Keyword arguments assembled for the model call.
+
+        Returns
+        -------
+        dict
+            The same arguments, with ``round_output=False`` added where the
+            model accepts it and the caller has not set it.
+        """
+        if "round_output" in self._allowed_args and "round_output" not in (
+            self._fixed_values
+        ):
+            call_kwargs["round_output"] = False
+        return call_kwargs
+
     def _build_call_kwargs(self, x_value: Any, y_value: Any) -> dict[str, Any]:
         """Build validated kwargs for a model evaluation call."""
         call_kwargs: dict[str, Any] = dict(self._fixed_values)
         call_kwargs[self._x_axis.name] = x_value
         call_kwargs[self._y_axis.name] = y_value
+        call_kwargs = self._prefer_unrounded_output(call_kwargs)
         call_kwargs = _apply_default_links_to_kwargs(
             call_kwargs,
             allowed_args=self._allowed_args,
@@ -322,33 +379,6 @@ class GridBasePlot(BasePlot):
         )
         return call_kwargs
 
-    def _build_grid(
-        self,
-    ) -> tuple[float, float, float, float, np.ndarray, np.ndarray]:
-        """Build contour mesh grid from axis configs."""
-        x_min = float(self._x_axis.min_val)
-        x_max = float(self._x_axis.max_val)
-        y_min = float(self._y_axis.min_val)
-        y_max = float(self._y_axis.max_val)
-
-        x_vals = np.arange(x_min, x_max, self._x_axis.resolution)
-        if x_vals[-1] < x_max:
-            x_vals = np.append(x_vals, x_max)
-
-        y_vals = np.arange(y_min, y_max, self._y_axis.resolution)
-        if y_vals[-1] < y_max:
-            y_vals = np.append(y_vals, y_max)
-
-        if x_vals.size < 2 or y_vals.size < 2:
-            msg = (
-                "Axis resolution is too coarse for the chosen ranges. "
-                "Each axis requires at least 2 grid points."
-            )
-            raise ValueError(msg)
-
-        X, Y = np.meshgrid(x_vals, y_vals)
-        return x_min, x_max, y_min, y_max, X, Y
-
     def _evaluate_grid_output(
         self,
         *,
@@ -361,7 +391,8 @@ class GridBasePlot(BasePlot):
         y_flat = np.asarray(y).ravel()
         grid_kwargs = self._build_call_kwargs(x_flat, y_flat)
         try:
-            result = self._model_func(**grid_kwargs)
+            with _suppress_applicability_warnings():
+                result = self._model_func(**grid_kwargs)
         except Exception as exc:
             msg = f"Failed to evaluate model on contour grid: {exc}"
             raise ValueError(msg) from exc

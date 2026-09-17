@@ -247,6 +247,14 @@ def test_string_ltime_raises_type_error() -> None:
         two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, 1.76, ltime="1")
 
 
+def test_bool_ltime_raises_type_error() -> None:
+    """bool is an int subclass; it must still be rejected as a valid ltime."""
+    with pytest.raises(TypeError, match="ltime"):
+        two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, 1.76, ltime=True)
+    with pytest.raises(TypeError, match="ltime"):
+        two_nodes_gagge_sleep(18, 18, 0.05, 50, 1.4, 1.76, ltime=False)
+
+
 def test_non_positive_ltime_raises_value_error() -> None:
     """ltime <= 0 must be rejected rather than silently producing zero iterations."""
     with pytest.raises(ValueError, match="ltime"):
