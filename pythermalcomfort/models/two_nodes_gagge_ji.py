@@ -3,10 +3,14 @@ from __future__ import annotations
 import math
 
 import numpy as np
+from numba import njit, prange
 
 from pythermalcomfort.classes_input import GaggeTwoNodesJiInputs, NumericInput
 from pythermalcomfort.classes_return import GaggeTwoNodesJi
 from pythermalcomfort.utilities import Postures
+
+_POSITION_SITTING = 0
+_POSITION_STANDING = 1
 
 
 def two_nodes_gagge_ji(
@@ -141,60 +145,78 @@ def two_nodes_gagge_ji(
         position=position,
     )
 
-    excluded_params = {
-        "position",
-        "acclimatized",
-        "body_weight",
-        "length_time_simulation",
-        "initial_skin_temp",
-        "initial_core_temp",
-    }
-
-    results_array_of_dicts = np.vectorize(
-        _two_nodes_ji_optimized,
-        excluded=excluded_params,
-        otypes=[object],
-    )(
-        tdb=tdb,
-        tr=tr,
-        v=v,
-        met=met,
-        clo=clo,
-        vapor_pressure=vapor_pressure,
-        wme=wme,
-        body_surface_area=body_surface_area,
-        p_atm=p_atm,
-        position=position,
-        acclimatized=acclimatized,
-        body_weight=body_weight,
-        length_time_simulation=length_time_simulation,
-        initial_skin_temp=initial_skin_temp,
-        initial_core_temp=initial_core_temp,
+    (
+        tdb_b,
+        tr_b,
+        v_b,
+        met_b,
+        clo_b,
+        vapor_pressure_b,
+        wme_b,
+        body_surface_area_b,
+        p_atm_b,
+    ) = np.broadcast_arrays(
+        tdb,
+        tr,
+        v,
+        met,
+        clo,
+        vapor_pressure,
+        wme,
+        body_surface_area,
+        p_atm,
     )
+    output_shape = tdb_b.shape
+    try:
+        flattened_inputs = tuple(
+            np.asarray(np.ravel(value), dtype=np.float64)
+            for value in (
+                tdb_b,
+                tr_b,
+                v_b,
+                met_b,
+                clo_b,
+                vapor_pressure_b,
+                wme_b,
+                body_surface_area_b,
+                p_atm_b,
+            )
+        )
+    except (TypeError, ValueError) as error:
+        raise TypeError("All numeric inputs must contain numeric values.") from error
+    position_code = (
+        _POSITION_SITTING if position == Postures.sitting.value else _POSITION_STANDING
+    )
+    simulation_steps = max(0, math.ceil(length_time_simulation))
 
-    output_data = {}
-    if results_array_of_dicts.ndim == 0:
-        # scalar inputs
-        output_data = results_array_of_dicts.item()
-    elif results_array_of_dicts.size == 0:
-        # empty input arrays
-        output_data = {"t_core": [], "t_skin": []}
+    if output_shape == ():
+        t_core, t_skin = _two_nodes_ji_optimized_scalar(
+            *(value[0] for value in flattened_inputs),
+            position_code=position_code,
+            acclimatized=bool(acclimatized),
+            body_weight=float(body_weight),
+            length_time_simulation=simulation_steps,
+            initial_skin_temp=float(initial_skin_temp),
+            initial_core_temp=float(initial_core_temp),
+        )
     else:
-        # multiple simulations were run with array inputs
-        # t_core and t_skin are arrays of arrays, each array corresponds to a simulation
-        first_result_dict = results_array_of_dicts[0]
-        for key in first_result_dict.keys():
-            output_data[key] = []
+        t_core_array, t_skin_array = _two_nodes_ji_optimized_array(
+            *flattened_inputs,
+            position_code=position_code,
+            acclimatized=bool(acclimatized),
+            body_weight=float(body_weight),
+            length_time_simulation=simulation_steps,
+            initial_skin_temp=float(initial_skin_temp),
+            initial_core_temp=float(initial_core_temp),
+        )
+        t_core = list(t_core_array)
+        t_skin = list(t_skin_array)
 
-        for res_dict in results_array_of_dicts:
-            for key, value in res_dict.items():
-                # creates a list of NumPy arrays for each key
-                output_data[key].append(value)
-
-    return GaggeTwoNodesJi(**output_data)
+    return GaggeTwoNodesJi(t_core=t_core, t_skin=t_skin)
 
 
-def _two_nodes_ji_optimized(
+@njit(cache=True)
+def _two_nodes_ji_optimized_scalar(
     tdb,
     tr,
     v,
@@ -204,13 +226,18 @@ def _two_nodes_ji_optimized(
     wme,
     body_surface_area,
     p_atm,
-    position,
+    position_code,
     acclimatized,
     body_weight,
     length_time_simulation,
     initial_skin_temp,
     initial_core_temp,
 ):
+    """Run one stateful Gagge-Ji simulation in compiled code.
+
+    Returns one core-temperature array and one skin-temperature array, each with
+    ``length_time_simulation`` values.
+    """
     # Initial variables as defined in the ASHRAE 55-2020
     air_speed = max(v, 0.1)
     met_factor = 58.2  # met conversion factor
@@ -257,8 +284,6 @@ def _two_nodes_ji_optimized(
     w = 0.06  # skin wettedness
 
     pressure_in_atmospheres = p_atm / 101325
-    n_simulation = 0
-
     r_clo = 0.155 * clo  # thermal resistance of clothing, K*m2/W
     # increase in body surface area due to clothing
     f_a_cl = 1.0 + 0.2 * clo if clo < 0.5 else 1.05 + 0.1 * clo
@@ -285,12 +310,10 @@ def _two_nodes_ji_optimized(
     h_cc = 3  # initial value - convective heat transfer coefficient
     h_r = 4.7  # initial value - linearized radiative heat transfer coefficient
 
-    skin_temp_hist = []
-    core_temp_hist = []
+    skin_temp_hist = np.empty(length_time_simulation, dtype=np.float64)
+    core_temp_hist = np.empty(length_time_simulation, dtype=np.float64)
 
-    while n_simulation < length_time_simulation:
-        n_simulation += 1
-
+    for n_simulation in range(length_time_simulation):
         iteration_limit = 150  # for following while loop
 
         h_t = (
@@ -305,7 +328,7 @@ def _two_nodes_ji_optimized(
         tc_converged = False
 
         while not tc_converged:
-            if position == Postures.sitting.value:
+            if position_code == _POSITION_SITTING:
                 # 0.7 ratio between radiation area of the body and the body area
                 h_r = 4.0 * 0.97 * sbc * ((t_cl + tr) / 2.0 + 273.15) ** 3.0 * 0.7
             else:  # if standing
@@ -447,7 +470,52 @@ def _two_nodes_ji_optimized(
         m = met * met_factor + met_shivering
 
         # Append skin and core temp for time point
-        skin_temp_hist.append(t_skin)
-        core_temp_hist.append(t_core)
+        skin_temp_hist[n_simulation] = t_skin
+        core_temp_hist[n_simulation] = t_core
 
-    return {"t_core": np.asarray(core_temp_hist), "t_skin": np.asarray(skin_temp_hist)}
+    return core_temp_hist, skin_temp_hist
+
+
+@njit(cache=True, parallel=True)
+def _two_nodes_ji_optimized_array(
+    tdb,
+    tr,
+    v,
+    met,
+    clo,
+    vapor_pressure,
+    wme,
+    body_surface_area,
+    p_atm,
+    position_code,
+    acclimatized,
+    body_weight,
+    length_time_simulation,
+    initial_skin_temp,
+    initial_core_temp,
+):
+    """Run independent flattened simulations in parallel."""
+    n_simulations = tdb.size
+    core_temp_hist = np.empty((n_simulations, length_time_simulation), dtype=np.float64)
+    skin_temp_hist = np.empty((n_simulations, length_time_simulation), dtype=np.float64)
+
+    for i in prange(n_simulations):
+        core_temp_hist[i], skin_temp_hist[i] = _two_nodes_ji_optimized_scalar(
+            tdb=tdb[i],
+            tr=tr[i],
+            v=v[i],
+            met=met[i],
+            clo=clo[i],
+            vapor_pressure=vapor_pressure[i],
+            wme=wme[i],
+            body_surface_area=body_surface_area[i],
+            p_atm=p_atm[i],
+            position_code=position_code,
+            acclimatized=acclimatized,
+            body_weight=body_weight,
+            length_time_simulation=length_time_simulation,
+            initial_skin_temp=initial_skin_temp,
+            initial_core_temp=initial_core_temp,
+        )
+
+    return core_temp_hist, skin_temp_hist

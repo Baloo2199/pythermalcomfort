@@ -158,6 +158,8 @@ Unreleased
 * Fixed ``heat_index_rothfusz`` and ``heat_index_schoen`` classifying heat stress
   from the rounded heat index. Categories now use the unrounded SI value, so
   ``round_output`` only affects the returned numeric heat index (#381).
+* Sped up ``two_nodes_gagge_ji`` by compiling its per-simulation time loop with
+  Numba and parallelizing independent array inputs.
 
 4.5.0 (2026-09-15)
 ------------------
