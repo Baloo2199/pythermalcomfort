@@ -280,8 +280,8 @@ def _title_y_above_legend(*, n_handles: int, ncol: int, anchor_y: float) -> floa
     return anchor_y + rows * _PlotDefaults.title_legend_row_height
 
 
-#: Matches only the warning :func:`~pythermalcomfort.shared_functions.valid_range`
-#: raises.  Anchored loosely because the message opens with the parameter name
+#: Matches only warnings raised when a model input is outside its applicability
+#: limits. Anchored loosely because the message opens with the parameter name
 #: and the offending values, which vary.
 _APPLICABILITY_WARNING = r".*outside the applicability limits"
 
