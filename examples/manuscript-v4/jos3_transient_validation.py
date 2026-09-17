@@ -278,31 +278,20 @@ def plot_condition(ax: plt.Axes, condition: TransientCondition) -> None:
     )
 
     ax.set_xlim(0, sum(PHASE_MINUTES[1:]))
-    ax.set_ylim(27, 41)
+    ax.set_ylim(28, 41)
     ax.set_xlabel("Time [min]")
-    # Centred along the bottom, below the lowest data the y-limit leaves room
-    # for, so it never runs over the mean-skin trace.
-    ax.text(
-        0.5,
-        0.03,
-        f"RMSE (full {sum(PHASE_MINUTES[1:])}-min record): rectal {core_rmse:.2f}°C, "
-        f"skin {skin_rmse:.2f}°C",
-        transform=ax.transAxes,
-        fontsize=8,
-        ha="center",
-        va="bottom",
-    )
 
 
 def build_figure(conditions: tuple[TransientCondition, ...]) -> plt.Figure:
     """Build the two-panel hot/cold transient validation figure."""
-    fig, axes = plt.subplots(1, len(conditions), figsize=(9, 4), sharey=True)
+    fig, axes = plt.subplots(1, len(conditions), figsize=(7, 4), sharey=True)
     for ax, condition in zip(axes, conditions, strict=True):
         plot_condition(ax, condition)
 
     axes[0].set_ylabel("Rectal and mean skin temperature [°C]")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.tight_layout(rect=(0, 0, 1, 0.92))
+    fig.subplots_adjust(wspace=0.08)
     fig.legend(
         handles,
         labels,

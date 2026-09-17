@@ -136,7 +136,7 @@ def main():
     bounds = [-50] + UTCI_THRESHOLDS + [60]
     norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
-    fig = plt.figure(figsize=(9, 7), layout="constrained")
+    fig = plt.figure(figsize=(7, 5), layout="constrained")
     gs = fig.add_gridspec(2, 2, width_ratios=[7, 1])
     ax_heat = fig.add_subplot(gs[0, 0])
     ax_sum = fig.add_subplot(gs[0, 1])
@@ -154,7 +154,7 @@ def main():
     ax_heat.set_xlabel("Day of year")
     ax_heat.set_ylabel("Hour of day")
     ax_heat.set_yticks(range(0, 24, 3))
-    ax_heat.set_title("Hourly UTCI (shade)")
+    ax_heat.set_title("Hourly UTCI (shade)", fontsize=11, fontweight="normal")
 
     month_ticks, month_tick_labels = [], []
     for month_id, month_label in enumerate(MONTH_LABELS, start=1):
@@ -168,7 +168,7 @@ def main():
 
     # Top right: annual UTCI stress category distribution
     df_utci = pd.DataFrame({"utci": utci_vals})
-    (
+    summary_result = (
         SummaryPlot(df_utci)
         .set_regions(
             output="utci",
@@ -178,10 +178,16 @@ def main():
         )
         .plot(ax=ax_sum, vertical=True, legend=False)
     )
+    # SummaryPlot's default percentage-label size (12pt) reads oversized next
+    # to this figure's other annotations (7-9pt), so shrink it to match here
+    # rather than changing the library-wide default used by other plots.
+    for artist in summary_result.artists:
+        if hasattr(artist, "set_fontsize"):
+            artist.set_fontsize(8)
     # Label the panel itself via a right-side axis label rather than a text
     # box drawn over the bar, so it no longer overlaps the plotted segments.
     ax_sum.yaxis.set_label_position("right")
-    ax_sum.set_ylabel("Annual distribution", rotation=270, labelpad=15, fontsize=12)
+    ax_sum.set_ylabel("Annual distribution", rotation=270, labelpad=15, fontsize=9)
 
     # Bottom: monthly stacked bar of UTCI stress categories
     dark_labels = {
@@ -242,7 +248,7 @@ def main():
     ax_bar.set_xticklabels(MONTH_LABELS)
     ax_bar.set_ylim(0, 100)
     ax_bar.set_ylabel("Percentage of time (%)")
-    ax_bar.set_title(r"Monthly UTCI (shade)")
+    ax_bar.set_title(r"Monthly UTCI (shade)", fontsize=11, fontweight="normal")
     ax_bar.grid(False)
 
     # One legend for the whole figure, placed above all three panels, since
@@ -254,7 +260,7 @@ def main():
         legend_handles,
         legend_labels_plot,
         loc="upper center",
-        bbox_to_anchor=(0.5, 1.08),
+        bbox_to_anchor=(0.5, 1.14),
         ncol=min(4, max(1, len(legend_labels_plot))),
         fontsize=9,
         frameon=False,

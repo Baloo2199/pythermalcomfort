@@ -1,7 +1,8 @@
-"""Field study example: PMV analysis from Cozie wearable data.
+"""Field study example: PMV screening from Cozie wearable data.
 
 Reads a Cozie field-study dataset and computes PMV (ISO 7730) for each observation,
-producing a per-participant distribution of PMV comfort category.
+producing a per-participant distribution of PMV screening categories based on air-speed
+conditions.
 
 Usage
 -----
@@ -26,8 +27,12 @@ CLO_MAP = {"Very light": 0.3, "Light": 0.5, "Medium": 0.7, "Heavy": 1.0}
 AIR_SPEED_MIN = 0.1  # m/s
 AIR_SPEED_MAX = 1  # m/s
 
-# PMV comfort categories
-PMV_LABELS = ["Cool (PMV < -0.5)", "Comfortable", "Warm (PMV > 0.5)"]
+# PMV screening categories (based on air-speed conditions)
+PMV_LABELS = [
+    "PMV < -0.5 at 0.1 m/s",
+    "-0.5 ≤ PMV ≤ 0.5",
+    "PMV > 0.5 at 1.0 m/s",
+]
 PMV_COLORS = ["#74add1", "#abdda4", "#f46d43"]
 
 # ---------------------------------------------------------------------------
@@ -45,10 +50,10 @@ df["clothing"] = df["clothing"].map(CLO_MAP)
 df_pmv = df.dropna(subset=["t-env", "rh-env", "met", "clothing"]).copy()
 
 # ---------------------------------------------------------------------------
-# PMV (vectorised) -- range-based classification
-# Too cool : PMV < -0.5 at vr = 0.1 m/s
-# Too warm : PMV >  0.5 at vr = 1.0 m/s (elevated air movement still too warm)
-# Comfortable: everything in between
+# PMV (vectorised) -- air-speed-based screening classification
+# PMV < -0.5 at 0.1 m/s : robustly cool even at the lowest assumed air speed
+# PMV > 0.5 at 1.0 m/s  : robustly warm even at the highest assumed air speed
+# -0.5 <= PMV <= 0.5     : neither of the above (illustrative middle band)
 # ---------------------------------------------------------------------------
 _common = dict(
     tdb=df_pmv["t-env"].values,
@@ -96,7 +101,7 @@ pct_pmv = participant_pct(df_pmv, "pmv_cat", PMV_LABELS)
 # ---------------------------------------------------------------------------
 # Figure: single stacked bar chart
 # ---------------------------------------------------------------------------
-fig, ax = plt.subplots(figsize=(8, 3.2))
+fig, ax = plt.subplots(figsize=(7, 3.2))
 
 x = np.arange(len(PARTICIPANTS))
 x_labels = [f"P{p}" for p in PARTICIPANTS]
@@ -127,9 +132,9 @@ for j, (label, color) in enumerate(zip(PMV_LABELS, PMV_COLORS, strict=True)):
     bottom += vals
 
 ax.set_ylim(0, 100)
-ax.set_ylabel("Time (%)")
+ax.set_ylabel("Observations (%)")
 ax.set_title(
-    f"PMV (ISO 7730) - air speed {AIR_SPEED_MIN} to {AIR_SPEED_MAX} m/s",
+    f"PMV Screening Categories (ISO 7730) - air speed {AIR_SPEED_MIN} to {AIR_SPEED_MAX} m/s",
     fontsize=10,
     y=1.15,
 )

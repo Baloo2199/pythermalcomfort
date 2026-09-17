@@ -60,7 +60,8 @@ fig, axes = plt.subplots(
     )
     .plot(ax=axes[0], legend_kws=legend_kws)
 )
-axes[0].set(ylabel="Relative humidity (%)", xlabel=r"Dry-bulb temperature ($^\circ$C)")
+axes[0].set_ylabel("Relative humidity (%)")
+axes[0].set_xlabel("")
 axes[0].set_title("PMV (ISO 7730)", y=Y_TITLE_OFFSET)
 
 legend_kws.update({"ncol": 2})
@@ -86,11 +87,13 @@ legend_kws.update({"ncol": 2})
     )
     .plot(ax=axes[1], legend_kws=legend_kws)
 )
-axes[1].set(ylabel="Relative humidity (%)", xlabel=r"Dry-bulb temperature ($^\circ$C)")
+axes[1].set_ylabel("Relative humidity (%)")
+axes[1].set_xlabel("")
 axes[1].set_title("UTCI", y=Y_TITLE_OFFSET + 0.15)
 
 # Panel C -- Heat Index (Lu and Romps 2022)
 # heat_index_lu only requires tdb and rh; no set_params needed.
+# Standard Heat Index intervals: 27, 32, 41 (degrees Celsius)
 (
     ThresholdPlot(heat_index_lu)
     .set_x_axis("tdb", T_MIN, T_MAX, resolution=RESOLUTION_T)
@@ -99,10 +102,10 @@ axes[1].set_title("UTCI", y=Y_TITLE_OFFSET + 0.15)
         output="hi",
         thresholds=[27, 32, 41],
         labels=[
-            r"Caution (HI<27$^\circ$C)",
-            "Extreme caution",
-            "Danger",
-            r"Extreme danger (HI>41$^\circ$C)",
+            r"No risk (HI<27$^\circ$C)",
+            r"Caution (27≤HI<32$^\circ$C)",
+            r"Extreme caution (32≤HI<41$^\circ$C)",
+            r"Danger (HI≥41$^\circ$C)",
         ],
         colors=[C_NEUTRAL, C_CAUTION, C_STRONG, C_EXTREME],
     )
