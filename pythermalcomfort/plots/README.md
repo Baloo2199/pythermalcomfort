@@ -75,7 +75,7 @@ chart drawn on an `ax` you created matches one where `plot()` made the axis:
 - no grid — call `result.ax.grid(True)` to put it back
 - no top or right spine
 - no boundary lines — pass `show_lines=True` to draw them
-- out-of-model-limits areas in `#ececec`, overridable via `invalid_color`
+- out-of-model-limits areas in neutral gray `#C4C9CC`, overridable via `invalid_color`
 
 `AdaptivePlot` keeps its grid, which its bands are read against.
 

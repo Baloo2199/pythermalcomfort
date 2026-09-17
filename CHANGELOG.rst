@@ -4,8 +4,10 @@ Changelog
 Unreleased
 ----------
 
-* Standardized the default three-region plot palette: cool is blue, comfortable is
-  near-white, and warm is red.
+* Standardized the default plot palette: cooler regions progress from pale to muted
+  blue, warmer regions from pale to muted terracotta, and a true central comfort
+  region uses neutral gray. Out-of-model-limit areas use a contrasting neutral gray,
+  and plots limit each axis to six major tick labels by default.
 * Added an annual PMV heatmap-and-summary Matplotlib recipe to the plotting examples.
 * Deprecated the following legacy public import paths. They continue to work for two
   minor releases and emit ``DeprecationWarning`` pointing to their new locations;

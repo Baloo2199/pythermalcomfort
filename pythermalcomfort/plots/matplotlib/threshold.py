@@ -271,6 +271,7 @@ class ThresholdPlot(GridBasePlot):
                         high,
                         color=invalid_color,
                         zorder=_PlotDefaults.Threshold.zorder_invalid,
+                        antialiased=False,
                     ),
                 )
                 for low, high in (
@@ -372,6 +373,11 @@ class ThresholdPlot(GridBasePlot):
             _apply_axes_style(ax)
 
             fill_opts = dict(fill_kws or {})
+            # Degenerate bands occur where a threshold reaches the model's
+            # applicability boundary. Without anti-aliasing disabled,
+            # Matplotlib can rasterize their zero-width polygon as a thin
+            # coloured seam over the adjoining region.
+            fill_opts.setdefault("antialiased", False)
 
             bands = self._solve_bands(rc.output_name, rc.thresholds)
             if bands is None:

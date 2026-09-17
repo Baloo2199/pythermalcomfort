@@ -36,8 +36,30 @@ def _new_summary(pmv_df: pd.DataFrame) -> SummaryPlot:
     return SummaryPlot(pmv_df).set_regions(output="pmv", thresholds=[-0.5, 0.5])
 
 
-def test_default_three_region_palette_is_cool_neutral_warm() -> None:
-    assert _default_region_colors(3) == ["#0067B2", "#E8F0F9", "#C40025"]
+@pytest.mark.parametrize(
+    ("n_regions", "expected"),
+    [
+        (2, ["#86AEC8", "#D88B7B"]),
+        (3, ["#86AEC8", "#F1F3F2", "#D88B7B"]),
+        (5, ["#5F8FA9", "#B7D0DE", "#F1F3F2", "#E7B7AC", "#C66B5E"]),
+        (
+            7,
+            [
+                "#527F98",
+                "#86AEC8",
+                "#C7DCE6",
+                "#F1F3F2",
+                "#EBCBC3",
+                "#D88B7B",
+                "#B85F55",
+            ],
+        ),
+    ],
+)
+def test_default_region_palette_progresses_from_cool_to_warm(
+    n_regions: int, expected: list[str]
+) -> None:
+    assert _default_region_colors(n_regions) == expected
 
 
 def test_init_rejects_non_dataframe() -> None:

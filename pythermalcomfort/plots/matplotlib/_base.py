@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 from matplotlib.axes import Axes
@@ -27,15 +27,23 @@ from pythermalcomfort.plots.matplotlib._shared import (
 class BasePlot(ABC):
     """Abstract base for all pythermalcomfort Matplotlib plot classes.
 
-    Enforces the :meth:`plot` contract via :func:`~abc.abstractmethod`.
-    Each concrete subclass owns its own :meth:`set_regions` with a signature
-    appropriate to its domain.
+    Enforces the :meth:`set_regions` and :meth:`plot` contracts via
+    :func:`~abc.abstractmethod`. Each concrete subclass owns its own
+    :meth:`set_regions` signature, appropriate to its domain.
 
     Subclasses must implement :meth:`plot`.
     """
 
     def __init__(self) -> None:
         self._region_config: RegionConfig | None = None
+
+    @abstractmethod
+    def set_regions(self, *args: Any, **kwargs: Any) -> Self:
+        """Configure the plot regions and return self.
+
+        Concrete plot families define their own parameters: grid and summary
+        plots use numeric thresholds, while adaptive plots select named bands.
+        """
 
     @abstractmethod
     def plot(
@@ -110,7 +118,7 @@ class GridBasePlot(BasePlot):
         min_val: Any,
         max_val: Any,
         resolution: Any,
-    ) -> GridBasePlot:
+    ) -> Self:
         """Validate and set one axis configuration."""
         if not isinstance(name, str):
             raise TypeError("Axis name must be a string.")
@@ -158,7 +166,7 @@ class GridBasePlot(BasePlot):
         max_val: float,
         *,
         resolution: float | None = None,
-    ) -> GridBasePlot:
+    ) -> Self:
         """Set x-axis model parameter, range, and grid resolution.
 
         Parameters
@@ -205,7 +213,7 @@ class GridBasePlot(BasePlot):
         max_val: float,
         *,
         resolution: float | None = None,
-    ) -> GridBasePlot:
+    ) -> Self:
         """Set y-axis model parameter, range, and grid resolution.
 
         Parameters
@@ -245,7 +253,7 @@ class GridBasePlot(BasePlot):
             resolution=resolution,
         )
 
-    def set_params(self, **kwargs: Any) -> GridBasePlot:
+    def set_params(self, **kwargs: Any) -> Self:
         """Set fixed model parameters used during grid evaluation.
 
         Parameters
