@@ -4,6 +4,9 @@ Changelog
 Unreleased
 ----------
 
+4.6.0 (2026-09-17)
+------------------
+
 * Standardized the default plot palette: cooler regions progress from pale to muted
   blue, warmer regions from pale to muted terracotta, and a true central comfort
   region uses neutral gray. Out-of-model-limit areas use a contrasting neutral gray,
@@ -120,7 +123,7 @@ Unreleased
 * Threshold boundary lines are now hidden by default (``show_lines=True``
   brings them back): the region fills meet exactly on the boundary, so the
   colour change already marks it and the extra line mostly added weight. The
-  out-of-model-limits shading is lighter, ``#ececec`` instead of ``#bdbdbd``.
+  out-of-model-limits shading is a light neutral gray (``#C4C9CC``).
   The grid and the top and right spines are now set on the axis rather than
   through ``rc_context``, which fixes charts drawn on a caller-supplied ``ax``
   keeping whatever frame and grid the caller's ``rcParams`` gave them --
