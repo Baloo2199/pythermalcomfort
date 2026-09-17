@@ -278,8 +278,20 @@ def plot_condition(ax: plt.Axes, condition: TransientCondition) -> None:
     )
 
     ax.set_xlim(0, sum(PHASE_MINUTES[1:]))
-    ax.set_ylim(28, 41)
+    ax.set_ylim(27, 41)
     ax.set_xlabel("Time [min]")
+    # Centred along the bottom, below the lowest data the y-limit leaves room
+    # for, so it never runs over the mean-skin trace.
+    ax.text(
+        0.5,
+        0.03,
+        f"RMSE (full {sum(PHASE_MINUTES[1:])}-min record): rectal {core_rmse:.2f}°C, "
+        f"skin {skin_rmse:.2f}°C",
+        transform=ax.transAxes,
+        fontsize=8,
+        ha="center",
+        va="bottom",
+    )
 
 
 def build_figure(conditions: tuple[TransientCondition, ...]) -> plt.Figure:
