@@ -14,7 +14,11 @@ import requests
 # without needing to import them (pytest will automatically discover them).
 
 
-unit_test_data_prefix = "https://raw.githubusercontent.com/FedericoTartarini/validation-data-comfort-models/main/"
+# Pinned to a tagged release rather than `main` so that changes to the
+# validation-data-comfort-models repo can't silently break this repo's CI
+# before they've been reviewed and the pin deliberately bumped. See that
+# repo's CHANGELOG.md when bumping this tag.
+unit_test_data_prefix = "https://raw.githubusercontent.com/FedericoTartarini/validation-data-comfort-models/v1.0.0/"
 
 
 class Urls(Enum):

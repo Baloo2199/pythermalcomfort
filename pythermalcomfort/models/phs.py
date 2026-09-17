@@ -77,8 +77,10 @@ def phs(
             function returns nan. If False returns values even if input values are
             outside the applicability limits of the model.
 
-            The 7933 limits are 15 < tdb [°C] < 50, 0 < tr [°C] < 60,
-            0 < vr [m/s] < 3, 1.7 < met [met] < 7.5, and 0.1 < clo [clo] < 1.
+            The 7933 limits are 15 < tdb [°C] < 50, 0 < (tr - tdb) [°C] < 60,
+            0 < vr [m/s] < 3, and 0.1 < clo [clo] < 1. The metabolic rate limit is
+            standard-specific: 1.7 < met [met] < 7.5 (100-450 W/m2) in the 2004
+            standard, and 0.96 < met [met] < 4.3 (56-250 W/m2) in the 2023 standard.
 
     i_mst : float, optional
         Static moisture permeability index, [dimensionless]. Defaults to 0.38.
@@ -423,14 +425,18 @@ def phs(
     }
 
     if limit_inputs:
-        # ISO 7933 Annex A applicability limits. p_a lower bound is 0.5 in the
-        # 2023 revision and 0 in the 2004 edition; all other limits are identical.
+        # ISO 7933 Annex A, Table A.1 applicability limits. p_a lower bound is 0.5 in
+        # the 2023 revision and 0 in the 2004 edition. The metabolic rate range is also
+        # standard-specific: 100-450 W/m2 in the 2004 edition, 56-250 W/m2 in the 2023
+        # edition. All other limits are identical, including the range on (tr - tdb),
+        # not on tr alone.
         p_a_lower = 0.5 if model == Models.iso_7933_2023.value else 0
+        met_range = (56, 250) if model == Models.iso_7933_2023.value else (100, 450)
         tdb_valid = valid_range(tdb, (15.0, 50.0))
-        tr_valid = valid_range(tr, (0.0, 60.0))
+        tr_valid = valid_range(tr - tdb, (0.0, 60.0), param_name="tr - tdb")
         v_valid = valid_range(v, (0.0, 3.0))
         p_a_valid = valid_range(p_a, (p_a_lower, 4.5))
-        met_valid = valid_range(met, (100, 450))
+        met_valid = valid_range(met, met_range)
         clo_valid = valid_range(clo, (0.1, 1.0))
         all_valid = ~(
             np.isnan(tdb_valid)
@@ -711,6 +717,11 @@ def _phs_optimized_scalar(
 
         # skin temperature [C]
         t_sk = t_sk0 * const_t_sk + t_sk_eq * (1 - const_t_sk)
+        if time == 1 and model_code == _MODEL_2023:
+            # ISO 7933:2023 Annex E forces the skin temperature to its equilibrium
+            # value on the first minute, removing the exponential lag for that step.
+            # This special case is not present in the 2004 Annex E reference code.
+            t_sk = t_sk_eq
         # Saturated water vapour pressure at the surface of the skin
         p_sk = 0.6105 * math.exp(17.27 * t_sk / (t_sk + 237.3))
         t_cl = tr + 0.1  # clothing surface temperature

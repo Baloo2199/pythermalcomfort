@@ -33,9 +33,9 @@ def ireq(
     Parameters
     ----------
     tdb : float or list of floats
-        Dry bulb air temperature, [deg C].
+        Dry bulb air temperature, [°C].
     tr : float or list of floats
-        Mean radiant temperature, [deg C].
+        Mean radiant temperature, [°C].
     vr : float or list of floats
         Relative air speed, [m/s].
     rh : float or list of floats
@@ -58,7 +58,7 @@ def ireq(
         .. note::
             The ISO 11079 applicability limits used by this function are
             58 <= met [W/m2] <= 400 after converting the input metabolic rate
-            from met to W/m2, tdb <= 10 [deg C], 0.4 <= vr [m/s] <= 18, and
+            from met to W/m2, tdb <= 10 [°C], 0.4 <= vr [m/s] <= 18, and
             minimum_walking_speed <= walk_sp [m/s] <= 1.2, where
             minimum_walking_speed = min(0.0052 * (met [W/m2] - 58), 1.2).
 

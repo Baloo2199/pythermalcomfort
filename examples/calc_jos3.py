@@ -14,6 +14,14 @@ jos3_example_directory = os.path.join(current_directory, directory_name)
 if not os.path.exists(jos3_example_directory):
     os.makedirs(jos3_example_directory)
 
+# The reference datasets ship next to this script, so they must be located
+# relative to the file rather than the working directory. Outputs still go to
+# the working directory, which is what jos3_example_directory above is for.
+jos3_data_directory = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    directory_name,
+)
+
 # -------------------------------------------
 # EXAMPLE 1 (simple simulation)
 # -------------------------------------------
@@ -205,29 +213,28 @@ def validation_simulation():
     """
     Following code is for validation between experimental and predicted data
     """
-    exp_dataset_name = "human_subject_experiment_dataset.xlsx"
-    exp_dataset_path = os.path.join(jos3_example_directory, exp_dataset_name)
-
     # Initialize an empty dictionary to hold the datasets
     exp_dataset = {}
 
-    # List of sheet names and their respective header row indices to be read
-    sheet_names = [("Stolwijk1966", 0), ("Werner1980", 0)]
+    # Datasets are stored as CSV so that running the examples needs no Excel
+    # reader. See the README in jos3_output_example/ for their provenance.
+    dataset_names = ["Stolwijk1966", "Werner1980"]
 
-    try:
-        # Loop through each sheet name and read the data into a DataFrame
-        for sheet_name, header in sheet_names:
-            exp_dataset[sheet_name] = pd.read_excel(
-                exp_dataset_path,
-                header=header,
-                sheet_name=sheet_name,
-            )
-    # Handle the case where the file is not found
-    except FileNotFoundError:
-        print(f"File {exp_dataset_path} not found.")
-    # Handle other general exceptions
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    for dataset_name in dataset_names:
+        dataset_path = os.path.join(
+            jos3_data_directory,
+            f"human_subject_experiment_dataset_{dataset_name}.csv",
+        )
+        # Deliberately not caught: a missing or unreadable dataset used to be
+        # printed and swallowed, which left exp_dataset empty and surfaced much
+        # later as a confusing KeyError. Failing here says what actually broke.
+        # float_precision="round_trip" makes the parsed values bit-identical to
+        # the original spreadsheet; the default parser can be 1 ULP off.
+        exp_dataset[dataset_name] = pd.read_csv(
+            dataset_path,
+            header=0,
+            float_precision="round_trip",
+        )
 
     # Concatenate all the individual data frames into a single DataFrame
     sim_dataset = {}
@@ -235,7 +242,10 @@ def validation_simulation():
     def sim_stolwijk_hardy(models, tolist, rhlist):
         result = []
         for model in models:
-            model.icl = np.asarray(
+            # JOS3 exposes clothing insulation as .clo (backed by _clo); there
+            # is no .icl, so assigning it silently left the model nude
+            # (Default.clothing_insulation = 0).
+            model.clo = np.asarray(
                 [
                     0,
                     0,
@@ -279,10 +289,13 @@ def validation_simulation():
             model.simulate(60)
 
             sim = pd.DataFrame(model.dict_results())
+            # Keep numeric columns only. The frame also carries "sex", which is
+            # a string, and segment columns that are undefined for parts of the
+            # body; averaging across subjects below would fail on those.
             sim = sim.loc[
                 10:,
                 "t_skin_mean":,
-            ]
+            ].select_dtypes(include="number")
             result.append(sim.copy())
 
         avgsim = (result[0] + result[1] + result[2]) / 3

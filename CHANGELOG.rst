@@ -1,6 +1,120 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+4.5.0 (2026-09-15)
+------------------
+
+* **Breaking (plots only):** ``PsychrometricPlot``'s y-axis is now expressed in
+  **g of water per kg of dry air** instead of kg/kg. Typical indoor humidity
+  ratios are 5-20 g/kg, which is far easier to read than 0.005-0.020 kg/kg.
+  Pass ``.set_y_axis("hr", 0.0, 30.0, resolution=1.0)`` where you previously
+  passed ``.set_y_axis("hr", 0.0, 0.030, resolution=0.001)``. A y-axis whose
+  upper bound is below 1 g/kg now emits a ``UserWarning`` explaining the
+  change, so an un-migrated call is flagged rather than silently rendering a
+  blank chart. It warns rather than raises because humidity ratios below
+  1 g/kg are physically real in cold or very dry air (at -20 degC, 0.5 g/kg is
+  roughly 80 % RH), which this package supports
+  (`#338 <https://github.com/pythermalcomfort/pythermalcomfort/issues/338>`_).
+
+  This does **not** change the psychrometric utilities. ``psy_ta_rh(...).hr``
+  still *returns* kg/kg dry air, and ``hr_to_rh()`` and ``enthalpy_air()``
+  still *accept* it, which is the SI convention and matches ASHRAE
+  Fundamentals. So multiply by 1000 when plotting ``psy_ta_rh(...).hr`` on
+  this chart, and divide by 1000 when passing a value read off this chart to
+  ``hr_to_rh()`` or ``enthalpy_air()``.
+* ``PsychrometricPlot`` now labels its own y-axis. Previously it inherited
+  ``ThresholdPlot``'s behaviour of labelling the axis with the raw parameter
+  name, so the axis read ``hr`` unless the caller set a label. Every caller
+  therefore wrote its own and they disagreed with each other about the units.
+  Override with ``result.ax.set_ylabel(...)`` if needed.
+* Fixed ``two_nodes_gagge_sleep`` silently truncating or coercing a non-integer
+  ``ltime`` keyword argument (e.g. ``1.5`` became one iteration, ``"1"`` was
+  accepted as a string) instead of raising. Non-``int`` values now raise
+  ``TypeError``, and values below 1 now raise ``ValueError`` rather than
+  running zero iterations.
+* Fixed invalid Numba annotations on the vectorised helpers in
+  ``heat_index_lu``, ``heat_index_rothfusz``, ``heat_index_schoen``, and
+  ``utci``. The scalar kernels keep ordinary ``float`` annotations and the
+  ``vectorize`` decorators are now typed to reflect that they accept both
+  scalars and arrays. The explicit Numba signatures are unchanged, so results
+  are unaffected
+  (`#393 <https://github.com/pythermalcomfort/pythermalcomfort/issues/393>`_).
+* Documentation: clarified the ``pmv_ppd_iso`` model parameters, distinguished
+  the ASHRAE and EN acceptability outputs of the adaptive models, and
+  documented the air-speed assumptions behind ``AdaptivePlot`` scatter
+  overlays.
+
+4.4.3 (2026-09-14)
+------------------
+
+* Fixed ``JOS3.dict_results()`` returning body part names instead of simulated
+  values (`#264 <https://github.com/pythermalcomfort/pythermalcomfort/issues/264>`_).
+  Each per-segment column was built by zipping its keys against a ``JOS3BodyParts``
+  ``__dict__``; iterating a dict yields its keys, so roughly 570 of the 577 columns
+  held strings such as ``"head"`` rather than temperatures. Only the aggregate
+  scalars (``t_skin_mean`` and similar) were correct. ``JOS3.to_csv()`` is affected
+  too, since it is built on ``dict_results()``.
+* Fixed per-segment values for variables defined on only part of the body
+  (``t_muscle``, ``t_fat``) in ``JOS3.dict_results()``. Their column names came from
+  ``VINDEX`` while their values were taken as the first *n* entries of a full
+  17-segment container, so ``t_muscle_pelvis`` carried the neck's value. Names and
+  values are now selected with the same indices. Note ``t_superficial_vein`` remains
+  mislabelled: it packs 12 limb values into the container's first 12 slots, and
+  relabelling requires confirming the intended segment mapping.
+* Fixed ``examples/calc_jos3.py`` setting ``model.icl``, which ``JOS3`` does not
+  define. Clothing insulation is exposed as ``clo``, so the assignment created an
+  unused attribute and the Stolwijk & Hardy validation ran at 0 clo, i.e. a nude
+  subject, rather than the intended 0.3 clo pattern.
+* The JOS-3 human-subject reference data ships as CSV instead of ``.xlsx``. Reading
+  it previously required ``openpyxl``, which is not a dependency of this package, so
+  ``validation_simulation()`` failed for anyone running the examples as documented.
+  The values are unchanged; read them with
+  ``pd.read_csv(..., float_precision="round_trip")``.
+* Added ``examples/manuscript-v4/``, the reproducible scripts behind the figures in
+  the *Building Simulation* manuscript describing this package, including a new
+  JOS-3 transient example comparing simulated rectal and mean skin temperature
+  against Stolwijk & Hardy (1966) human-subject data.
+* Sped up ``two_nodes_gagge_sleep`` by compiling its stateful simulation loop
+  with Numba while preserving its public output values and shapes. Empty
+  ``tdb``/``tr``/``v``/``rh``/``clo``/``thickness_quilt`` inputs now raise a
+  clear ``ValueError`` instead of failing with an unrelated ``TypeError``.
+* Addressed Copilot review feedback on the 4.4.1 ``phs`` fix: pass ``param_name``
+  explicitly to ``valid_range()`` for the ``(tr - tdb)`` check, and added regression
+  tests for the applicability-limit and minute-1 skin-temperature behavior.
+* Fixed the saturation vapour pressure calculation in ``utci``
+  (`#372 <https://github.com/pythermalcomfort/pythermalcomfort/issues/372>`_): the
+  Hardy/Wexler equation's ``ln(T)`` term used ``np.log1p`` (which computes
+  ``ln(1 + T)``) instead of ``np.log``, inflating the saturation vapour pressure by
+  ~1%. The resulting UTCI error is negligible in mild conditions (~0.03 °C at 25 °C,
+  50% RH) but grows to ~0.7 °C at 40 °C, 80% RH, where UTCI matters most for heat
+  stress assessment. Updated the affected hard-coded test expectations and added a
+  regression test cross-checking ``utci``'s vapour pressure against ``p_sat``.
+
+4.4.2 (2026-09-02)
+------------------
+
+* Pinned ``tests/conftest.py``'s ``validation-data-comfort-models`` fixture URL to the
+  ``v1.0.0`` tag instead of ``main``, so upstream fixture changes can't silently affect
+  CI before the pin is deliberately bumped and reviewed. See ``CONTRIBUTING.rst``'s
+  "Keeping the validation-data-comfort-models pin current" section.
+
+4.4.1 (2026-08-18)
+------------------
+
+* Fixed the ``phs`` applicability limits (`#225 <https://github.com/pythermalcomfort/pythermalcomfort/issues/225>`_):
+    - the ``tr`` limit is now checked against ``ISO 7933 Annex A, Table A.1``'s actual
+      ``0 < (tr - tdb) < 60`` range, instead of checking raw ``tr`` against ``(0, 60)``.
+    - the metabolic rate limit is now standard-specific: ``100-450 W/m2`` (1.7-7.5 met)
+      for the 2004 standard, ``56-250 W/m2`` (0.96-4.3 met) for the 2023 standard,
+      instead of always using the 2004 range.
+* Added the ISO 7933:2023 Annex E minute-1 skin temperature special case to the
+  ``phs`` 2023 model (``t_sk`` is forced to its equilibrium value on the first
+  minute), matching the standard's own reference program. This special case is
+  not present in the 2004 edition.
+
 4.4.0 (2026-07-25)
 ------------------
 

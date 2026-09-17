@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from pythermalcomfort.models import phs
@@ -6,7 +8,8 @@ from tests.conftest import Urls, retrieve_reference_table, validate_result
 
 
 def test_phs(get_test_url, retrieve_data) -> None:
-    """Test that the function calculates the Predicted Heat Strain (PHS) correctly for various inputs."""
+    """Test that the function calculates the Predicted Heat Strain (PHS) correctly for
+    various inputs."""
     reference_table = retrieve_reference_table(
         get_test_url,
         retrieve_data,
@@ -267,3 +270,74 @@ def test_value_drink() -> None:
             posture="standing",
             drink=2,
         )
+
+
+@pytest.mark.parametrize("model", ["7933-2004", "7933-2023"])
+def test_applicability_limit_is_on_tr_minus_tdb_not_tr(model: str) -> None:
+    """ISO 7933 Annex A, Table A.1 limits (tr - tdb) to (0, 60), not raw tr.
+
+    tr=10, tdb=40 gives tr - tdb = -30 (out of range) even though the raw tr
+    value of 10 would have passed the old, incorrect (0, 60) check on tr
+    alone. See #225.
+    """
+    result = phs(
+        tdb=40,
+        tr=10,
+        rh=50,
+        v=0.5,
+        met=2.0,
+        clo=0.5,
+        posture="standing",
+        model=model,
+        round_output=False,
+    )
+    assert math.isnan(result.t_cr)
+
+
+def test_applicability_limit_metabolic_rate_is_standard_specific() -> None:
+    """ISO 7933 Annex A, Table A.1: the metabolic rate range is 56-250 W/m2 in the 2023
+    standard but 100-450 W/m2 in the 2004 standard, not the 2004 range for both.
+
+    met=1.5 (~87.2 W/m2) falls inside the 2023 range and outside the 2004 one. See #225.
+    """
+    kwargs = dict(
+        tdb=30,
+        tr=40,
+        rh=50,
+        v=0.5,
+        met=1.5,
+        clo=0.5,
+        posture="standing",
+        round_output=False,
+    )
+    assert not math.isnan(phs(model="7933-2023", **kwargs).t_cr)
+    assert math.isnan(phs(model="7933-2004", **kwargs).t_cr)
+
+
+def test_2023_forces_skin_temperature_to_equilibrium_on_minute_one() -> None:
+    """ISO 7933:2023 Annex E forces t_sk to its equilibrium value on minute 1, removing
+    the exponential lag for that one step; this special case is not present in the 2004
+    Annex E reference code. See #217.
+
+    Starting from an artificial t_sk=20 far from equilibrium, after 1 minute the 2023
+    model should already be close to equilibrium (>30 degC) while the 2004 model, still
+    exponentially averaging, remains much closer to the artificial starting value.
+    """
+    kwargs = dict(
+        tdb=40,
+        tr=40,
+        rh=35,
+        v=0.3,
+        met=2.58,
+        clo=0.5,
+        posture="standing",
+        wme=0,
+        duration=1,
+        limit_inputs=False,
+        round_output=False,
+        t_sk=20.0,
+    )
+    result_2023 = phs(model="7933-2023", **kwargs)
+    result_2004 = phs(model="7933-2004", **kwargs)
+    assert result_2023.t_sk > 30
+    assert result_2004.t_sk < result_2023.t_sk

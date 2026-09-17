@@ -122,6 +122,11 @@ When opening a pull request, include:
 * Relevant documentation updates (docstrings or docs/).
 * A CHANGELOG entry (if applicable).
 * Add yourself to AUTHORS.rst (optional).
+* If your change touches ``tests/conftest.py``'s ``unit_test_data_prefix``
+  or any test relying on `validation-data-comfort-models
+  <https://github.com/FedericoTartarini/validation-data-comfort-models>`_,
+  check that repo's latest tag and bump the pin if a newer one exists —
+  see "Keeping the validation-data-comfort-models pin current" below.
 
 Contributing a New Function
 ===========================
@@ -295,6 +300,34 @@ Failing to do this means ``development`` will be behind ``master`` and the next
 RC tag will be rejected by the CI ``merge-base`` check.
 
 See ``CLAUDE.md`` for the full step-by-step release process.
+
+Keeping the validation-data-comfort-models pin current
+--------------------------------------------------------
+
+Test fixtures are fetched from `validation-data-comfort-models
+<https://github.com/FedericoTartarini/validation-data-comfort-models>`_ at a
+tagged release, pinned via ``unit_test_data_prefix`` in ``tests/conftest.py``
+(e.g. ``.../validation-data-comfort-models/v1.0.0/``). It is **not** pinned to
+``main``, on purpose: a fixture change there would otherwise silently change
+what our CI validates against, on every branch and PR, before anyone here
+reviewed it.
+
+This means the pin can drift behind that repo's actual latest tag. Before
+cutting a pythermalcomfort release, and whenever a PR here depends on new or
+changed reference data:
+
+1. Check the `latest tag <https://github.com/FedericoTartarini/validation-data-comfort-models/tags>`_
+   and its `CHANGELOG.md <https://github.com/FedericoTartarini/validation-data-comfort-models/blob/main/CHANGELOG.md>`_.
+2. If it's newer than the tag in ``tests/conftest.py``, bump the pin in the
+   same PR and note in the PR description which changelog entries motivated
+   the bump.
+3. Re-run the affected tests (e.g. ``pytest tests/test_phs.py``) against the
+   new tag before merging — a MAJOR bump there (see that repo's README for
+   its semver rules) can mean renamed/removed keys that break our assertions.
+
+Running against a tag that's several releases behind is treated as a bug to
+flag/fix, not a "leave it be" — open an issue if you notice this and can't fix
+it in the same PR.
 
 8) Formatting, linting and tests locally
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
