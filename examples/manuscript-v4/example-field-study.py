@@ -139,20 +139,22 @@ legend_handles = [
 ]
 ax.legend(
     handles=legend_handles,
-    loc="center",
-    bbox_to_anchor=(0.5, 1.08),
+    loc="upper center",
+    bbox_to_anchor=(0.5, 0.98),
     fontsize=8,
     frameon=False,
     ncol=3,
 )
 ax.set_xticks(x)
 ax.set_xticklabels(x_labels, fontsize=8)
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
 
-fig.tight_layout()
+fig.tight_layout(rect=(0, 0, 1, 0.88))
 
 outdir = os.path.join(SCRIPT_DIR, "output")
 os.makedirs(outdir, exist_ok=True)
 out = os.path.join(outdir, "example_field_study.pdf")
-fig.savefig(out, bbox_inches="tight")
+fig.savefig(out)
 plt.show()
 print(f"\nFigure saved to {out}")
