@@ -541,7 +541,7 @@ def _default_region_colors(n_regions: int) -> list[str]:
     if n_regions == 2:
         return ["#0067B2", "#C40025"]
     if n_regions == 3:
-        return ["#A3D1FF", "#A8E6CF", "#FFB7B2"]
+        return ["#0067B2", "#E8F0F9", "#C40025"]
 
     cmap = mcolors.LinearSegmentedColormap.from_list(
         "summary_blue_neutral_red",

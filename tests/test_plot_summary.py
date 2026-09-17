@@ -8,6 +8,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.legend import Legend
 
+from pythermalcomfort.plots.matplotlib._shared import _default_region_colors
 from pythermalcomfort.plots.matplotlib.summary import (
     SummaryPlot,
     SummaryPlotResult,
@@ -33,6 +34,10 @@ def pmv_df() -> pd.DataFrame:
 
 def _new_summary(pmv_df: pd.DataFrame) -> SummaryPlot:
     return SummaryPlot(pmv_df).set_regions(output="pmv", thresholds=[-0.5, 0.5])
+
+
+def test_default_three_region_palette_is_cool_neutral_warm() -> None:
+    assert _default_region_colors(3) == ["#0067B2", "#E8F0F9", "#C40025"]
 
 
 def test_init_rejects_non_dataframe() -> None:

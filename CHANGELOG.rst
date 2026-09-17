@@ -4,6 +4,9 @@ Changelog
 Unreleased
 ----------
 
+* Standardized the default three-region plot palette: cool is blue, comfortable is
+  near-white, and warm is red.
+* Added an annual PMV heatmap-and-summary Matplotlib recipe to the plotting examples.
 * Deprecated the following legacy public import paths. They continue to work for two
   minor releases and emit ``DeprecationWarning`` pointing to their new locations;
   this is not an immediate breaking change.
