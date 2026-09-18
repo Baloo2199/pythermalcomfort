@@ -255,7 +255,7 @@ def main():
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-    fig.subplots_adjust(left=0.10, right=0.97, bottom=0.10, top=0.72)
+    fig.subplots_adjust(left=0.10, right=0.97, bottom=0.10, top=0.80)
 
     # One legend for the whole figure, placed above all three panels, since
     # the heatmap, annual-distribution, and monthly panels all share the same
