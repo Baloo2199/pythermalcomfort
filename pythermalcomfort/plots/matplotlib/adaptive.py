@@ -522,6 +522,7 @@ class AdaptivePlot(BasePlot):
             ce = adaptive_cooling_effect(self._v, np.array([26.0]))[0]
 
             fills: list[PolyCollection] = []
+            hide_in_legend: list[bool] = []
             for band in bands:
                 t_rm_transition = (25.0 - intercept - band.spec.upper_offset) / slope
 
@@ -554,8 +555,12 @@ class AdaptivePlot(BasePlot):
                 fill = ax.fill_between(x, lower, upper, color=band.color, **fill_opts)
                 if "label" not in fill_opts:
                     fill.set_label(band.label)
+                    hide_in_legend.append(False)
                 elif fills:
                     fill.set_label("_nolegend_")
+                    hide_in_legend.append(True)
+                else:
+                    hide_in_legend.append(False)
                 fills.append(fill)
 
             center_line_artist: Line2D | None = None
@@ -583,8 +588,13 @@ class AdaptivePlot(BasePlot):
                 lg_opts.setdefault("ncol", _PlotDefaults.Adaptive.legend_ncol)
 
                 handles: list[Any] = []
-                for band, fill in zip(reversed(bands), reversed(fills), strict=True):
-                    if fill.get_label().startswith("_"):
+                for band, fill, hidden in zip(
+                    reversed(bands),
+                    reversed(fills),
+                    reversed(hide_in_legend),
+                    strict=True,
+                ):
+                    if hidden:
                         continue
                     handles.append(
                         Patch(
@@ -594,12 +604,14 @@ class AdaptivePlot(BasePlot):
                         )
                     )
                 if center_line_artist is not None:
+                    cl_proxy_kws = dict(cl_opts)
+                    cl_proxy_kws.pop("label", None)
                     handles.append(
                         Line2D(
                             [0],
                             [0],
                             label=center_line_artist.get_label(),
-                            **dict(_PlotDefaults.Adaptive.center_line_defaults),
+                            **cl_proxy_kws,
                         )
                     )
                 legend_artist = ax.legend(handles=handles, **lg_opts)

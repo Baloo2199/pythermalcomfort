@@ -332,6 +332,16 @@ def test_ashrae_plot_custom_labels() -> None:
     assert "Narrow" in labels
 
 
+def test_ashrae_plot_underscore_prefixed_label_kept() -> None:
+    result = (
+        AdaptivePlot(adaptive_ashrae)
+        .set_regions(show=["90"], labels=["_custom"])
+        .plot(show_center_line=False)
+    )
+    labels = [t.get_text() for t in result.legend.get_texts()]
+    assert "_custom" in labels
+
+
 def test_ashrae_plot_custom_colors() -> None:
     result = (
         AdaptivePlot(adaptive_ashrae).set_regions(colors=["#FF0000", "#00FF00"]).plot()
@@ -345,6 +355,21 @@ def test_ashrae_plot_center_line_kws() -> None:
     )
     assert result.center_line.get_color() == "red"
     assert result.center_line.get_linewidth() == 3.0
+
+
+def test_ashrae_plot_center_line_kws_legend_swatch_matches() -> None:
+    result = AdaptivePlot(adaptive_ashrae).plot(
+        center_line_kws={"color": "red", "linewidth": 3.0}
+    )
+    center_line_handle = next(
+        h
+        for h, t in zip(
+            result.legend.legend_handles, result.legend.get_texts(), strict=True
+        )
+        if t.get_text() == "Comfort Temperature"
+    )
+    assert center_line_handle.get_color() == "red"
+    assert center_line_handle.get_linewidth() == 3.0
 
 
 def test_ashrae_plot_fill_kws() -> None:
