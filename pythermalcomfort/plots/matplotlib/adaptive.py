@@ -388,7 +388,12 @@ class AdaptivePlot(BasePlot):
 
         labels : sequence of str, optional
             Custom labels for the visible bands.  Must have the same length as
-            *show* (or the total band count if *show* is ``None``).
+            *show* (or the total band count if *show* is ``None``).  A label
+            starting with ``"_"`` still appears in the legend built by
+            :meth:`plot`, but Matplotlib's own convention hides any label
+            starting with ``"_"`` from a legend rebuilt via a bare
+            ``ax.legend()`` call (e.g. after adding measured data) — pass
+            explicit ``handles`` to that call to keep such a label visible.
         colors : sequence of str, optional
             Custom colors for the visible bands.  Same length rule as *labels*.
 
@@ -604,8 +609,11 @@ class AdaptivePlot(BasePlot):
                         )
                     )
                 if center_line_artist is not None:
-                    cl_proxy_kws = dict(cl_opts)
-                    cl_proxy_kws.pop("label", None)
+                    cl_proxy_kws = {
+                        key: value
+                        for key, value in cl_opts.items()
+                        if key not in {"label", "data", "scalex", "scaley"}
+                    }
                     handles.append(
                         Line2D(
                             [0],

@@ -372,6 +372,12 @@ def test_ashrae_plot_center_line_kws_legend_swatch_matches() -> None:
     assert center_line_handle.get_linewidth() == 3.0
 
 
+def test_ashrae_plot_center_line_kws_axes_only_option_does_not_break_legend() -> None:
+    result = AdaptivePlot(adaptive_ashrae).plot(center_line_kws={"scalex": False})
+    labels = [t.get_text() for t in result.legend.get_texts()]
+    assert "Comfort Temperature" in labels
+
+
 def test_ashrae_plot_fill_kws() -> None:
     result = AdaptivePlot(adaptive_ashrae).plot(fill_kws={"alpha": 0.3})
     assert len(result.fills) > 0
