@@ -4,6 +4,9 @@ Changelog
 Unreleased
 ----------
 
+* Fixed ``AdaptivePlot`` losing or mislabeling legend entries for comfort bands and
+  the center line when the legend is rebuilt after adding measured data (#415).
+
 4.6.0 (2026-09-17)
 ------------------
 

@@ -388,7 +388,12 @@ class AdaptivePlot(BasePlot):
 
         labels : sequence of str, optional
             Custom labels for the visible bands.  Must have the same length as
-            *show* (or the total band count if *show* is ``None``).
+            *show* (or the total band count if *show* is ``None``).  A label
+            starting with ``"_"`` still appears in the legend built by
+            :meth:`plot`, but Matplotlib's own convention hides any label
+            starting with ``"_"`` from a legend rebuilt via a bare
+            ``ax.legend()`` call (e.g. after adding measured data) — pass
+            explicit ``handles`` to that call to keep such a label visible.
         colors : sequence of str, optional
             Custom colors for the visible bands.  Same length rule as *labels*.
 
@@ -522,6 +527,7 @@ class AdaptivePlot(BasePlot):
             ce = adaptive_cooling_effect(self._v, np.array([26.0]))[0]
 
             fills: list[PolyCollection] = []
+            hide_in_legend: list[bool] = []
             for band in bands:
                 t_rm_transition = (25.0 - intercept - band.spec.upper_offset) / slope
 
@@ -552,6 +558,14 @@ class AdaptivePlot(BasePlot):
                     upper = upper_base + adaptive_cooling_effect(self._v, upper_base)
 
                 fill = ax.fill_between(x, lower, upper, color=band.color, **fill_opts)
+                if "label" not in fill_opts:
+                    fill.set_label(band.label)
+                    hide_in_legend.append(False)
+                elif fills:
+                    fill.set_label("_nolegend_")
+                    hide_in_legend.append(True)
+                else:
+                    hide_in_legend.append(False)
                 fills.append(fill)
 
             center_line_artist: Line2D | None = None
@@ -559,6 +573,7 @@ class AdaptivePlot(BasePlot):
                 cl_opts = dict(_PlotDefaults.Adaptive.center_line_defaults)
                 if center_line_kws:
                     cl_opts.update(center_line_kws)
+                cl_opts.setdefault("label", _PlotDefaults.Adaptive.center_line_label)
                 t_lo, t_hi = self._t_rm_range
                 x = [t_lo, t_hi]
                 y = [slope * t_lo + intercept, slope * t_hi + intercept]
@@ -578,21 +593,33 @@ class AdaptivePlot(BasePlot):
                 lg_opts.setdefault("ncol", _PlotDefaults.Adaptive.legend_ncol)
 
                 handles: list[Any] = []
-                for band in reversed(bands):
+                for band, fill, hidden in zip(
+                    reversed(bands),
+                    reversed(fills),
+                    reversed(hide_in_legend),
+                    strict=True,
+                ):
+                    if hidden:
+                        continue
                     handles.append(
                         Patch(
                             facecolor=band.color,
                             alpha=fill_opts.get("alpha", _PlotDefaults.fill_alpha),
-                            label=band.label,
+                            label=fill.get_label(),
                         )
                     )
                 if center_line_artist is not None:
+                    cl_proxy_kws = {
+                        key: value
+                        for key, value in cl_opts.items()
+                        if key not in {"label", "data", "scalex", "scaley"}
+                    }
                     handles.append(
                         Line2D(
                             [0],
                             [0],
-                            label=_PlotDefaults.Adaptive.center_line_label,
-                            **dict(_PlotDefaults.Adaptive.center_line_defaults),
+                            label=center_line_artist.get_label(),
+                            **cl_proxy_kws,
                         )
                     )
                 legend_artist = ax.legend(handles=handles, **lg_opts)
